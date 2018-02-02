@@ -1,0 +1,134 @@
+
+
+import os
+import csv
+from collections import defaultdict
+
+with open('samples.list','r') as file:
+    SAMPLES=file.read().splitlines()
+
+header='SAMPLE BAIT_SET TOTAL_READS PCT_PF_READS PF_HQ_ALIGNED_READS PF_HQ_ALIGNED_Q20_BASES PF_HQ_MEDIAN_MISMATCHES PF_MISMATCH_RATE PF_HQ_ERROR_RATE PF_INDEL_RATE PCT_READS_ALIGNED_IN_PAIRS PCT_PF_READS_IMPROPER_PAIRS PCT_CHIMERAS PCT_ADAPTER'.split(' ')
+if config['resources'].get('disambiguate',False):
+    header+=['PCT_HUMAN','PCT_MOUSE','PCT_AMBIGUOUS']
+header+=['PCT_DUP']
+header+='PCT_PF_UQ_READS PCT_PF_UQ_READS_ALIGNED ON_BAIT_BASES NEAR_BAIT_BASES OFF_BAIT_BASES ON_TARGET_BASES PCT_SELECTED_BASES PCT_OFF_BAIT MEAN_BAIT_COVERAGE MEAN_TARGET_COVERAGE MEDIAN_TARGET_COVERAGE MAX_TARGET_COVERAGE PCT_USABLE_BASES_ON_BAIT PCT_USABLE_BASES_ON_TARGET ZERO_CVG_TARGETS_PCT PCT_EXC_DUPE PCT_EXC_MAPQ PCT_EXC_BASEQ PCT_EXC_OVERLAP PCT_EXC_OFF_TARGET PCT_TARGET_BASES_10X PCT_TARGET_BASES_40X PCT_TARGET_BASES_100X HET_SNP_SENSITIVITY HET_SNP_Q'.split(' ')
+
+localrules:Summary
+
+rule all:
+    input:
+        'metrics_summary.txt'
+        #expand("bam_input/final/{sample}/metrics/{reference}/alignment_summary.metrics",sample=SAMPLES,reference=config['resources']['reference']['key']),
+        #expand("bam_input/final/{sample}/metrics/{reference}/target_coverage.metrics",sample=SAMPLES,reference=config['resources']['reference']['key'])
+
+rule CollectAlignmentSummaryMetrics:
+    input:
+        "bam_input/final/{sample}/{reference}/{sample}.ready.bam"
+    output:
+        "bam_input/final/{sample}/metrics/{reference}/alignment_summary.metrics"
+    params:
+        reference=config['resources']['reference']['file'],
+        memory="10240m"
+    shell:
+        "java -Xmx{params.memory} -jar $HOME/software/picard/build/libs/picard.jar CollectAlignmentSummaryMetrics R={params.reference} I={input} O={output} VALIDATION_STRINGENCY=SILENT"
+
+rule CollectHsMetrics:
+    input:
+        "bam_input/final/{sample}/{reference}/{sample}.ready.bam"
+    output:
+        "bam_input/final/{sample}/metrics/{reference}/target.metrics",
+        "bam_input/final/{sample}/metrics/{reference}/target_coverage.metrics"
+    params:
+        reference=config['resources']['reference']['file'],
+        baits=config['resources']['baits']['intervals'],
+        targets=config['resources']['targets']['intervals'],
+        memory="10240m"
+    wildcard_constraints:
+        target=config['resources']['targets']['key']
+    shell:
+        "java -Xmx{params.memory} -jar $HOME/software/picard/build/libs/picard.jar CollectHsMetrics R={params.reference} I={input} O={output[0]} BAIT_INTERVALS={params.baits} TARGET_INTERVALS={params.targets} PER_TARGET_COVERAGE={output[1]} VALIDATION_STRINGENCY=SILENT"
+
+rule CollectTargetedPcrMetrics:
+    input:
+        "bam_input/final/{sample}/{reference}/{sample}.ready.bam"
+    output:
+        "bam_input/final/{sample}/metrics/{reference}/amplicon.metrics"
+    params:
+        reference=config['resources']['reference']['file'],
+        targets=config['resources']['targets']['intervals'],
+        #amplicons=config['amplicons']['intervals'],
+        memory="10240m"
+    shell:
+        "java -Xmx{params.memory} -jar $HOME/software/picard/build/libs/picard.jar CollectTargetedPcrMetrics R={params.reference} I={input} O={output} AMPLICON_INTERVALS={params.amplicons} TARGET_INTERVALS={params.targets}"
+
+rule CollectWgsMetrics:
+    input:
+        "bam_input/final/{sample}/{reference}/{sample}.ready.bam"
+    output:
+        "bam_input/final/{sample}/metrics/{reference}/whole_genome.metrics"
+    params:
+        reference=config['resources']['reference']['file'],
+        memory="10240m"
+    shell:
+        "java -Xmx{params.memory} -jar $HOME/software/picard/build/libs/picard.jar CollectWgsMetrics R={params.reference} I={input} O={output}"
+
+rule Summary:
+    input:
+        expand("bam_input/final/{sample}/metrics/{reference}/alignment_summary.metrics",sample=SAMPLES,reference=config['resources']['reference']['key']),
+        expand("bam_input/final/{sample}/metrics/{reference}/target_coverage.metrics",sample=SAMPLES,reference=config['resources']['reference']['key'])
+    output:
+        'metrics_summary.txt'
+    run:
+        ref=config['resources']['reference']['key']
+        with open(output[0],'w') as ofile:
+            writer=csv.DictWriter(ofile,delimiter='\t',fieldnames=header)
+            writer.writeheader()
+            for sample in SAMPLES:
+                some_dict=defaultdict(str)
+                if os.path.isfile('bam_input/final/{0}/metrics/{1}/mark_duplicates.table'.format(sample,ref)):
+                    #put these in defs?
+                    with open('bam_input/final/{0}/metrics/{1}/mark_duplicates.table'.format(sample,ref),'r') as file:
+                        for line in file:
+                            if line.startswith('LIBRARY'):
+                                values=dict(zip(line.rstrip().split('\t'),file.__next__().rstrip().split('\t')))
+                                break
+                        some_dict['PCT_DUP']=values['PERCENT_DUPLICATION']
+                
+                with open('bam_input/final/{0}/metrics/{1}/alignment_summary.metrics'.format(sample,ref),'r') as aln_f:
+                    for line in aln_f:
+                        if line.startswith('CATEGORY'):
+                            break
+                    reader=csv.DictReader(aln_f,delimiter='\t',fieldnames=line.rstrip().split('\t'))
+                    FIRST_OF_PAIR=reader.__next__()
+                    SECOND_OF_PAIR=reader.__next__()
+                    PAIR=reader.__next__()
+                    for k,v in PAIR.items():
+                        if k in header:
+                            some_dict[k]=v
+                
+                with open('bam_input/final/{0}/metrics/{1}/target.metrics'.format(sample,ref),'r') as file:
+                    for line in file:
+                        if line.startswith('BAIT_SET'):
+                            break
+                    reader=csv.DictReader(file,delimiter='\t',fieldnames=line.rstrip().split('\t'))
+                    values=dict(zip(line.rstrip().split('\t'),file.__next__().rstrip().split('\t')))
+                    for k,v in values.items():
+                        if k in header:
+                            some_dict[k]=v
+                
+                if os.path.isfile('bam_input/work/{0}/disambres/input_summary.txt'.format(sample)):
+                    with open('bam_input/work/{0}/disambres/input_summary.txt'.format(sample),'r') as file:
+                        try:
+                            values=dict(zip(file.__next__().rstrip().split('\t'),file.__next__().rstrip().split('\t')))
+                            total=sum(int(values.get(k,0)) for k in ['unique species A pairs','unique species B pairs','ambiguous pairs'])
+                            #['PCT_HUMAN','PCT_MOUSE','PCT_AMBIGUOUS']
+                            some_dict['PCT_HUMAN']=str(int(values.get('unique species A pairs',0))/total)
+                            some_dict['PCT_MOUSE']=str(int(values.get('unique species B pairs',0))/total)
+                            some_dict['PCT_AMBIGUOUS']=str(int(values.get('ambiguous pairs',0))/total)
+                        except IndexError:
+                            pass
+                some_dict['SAMPLE']=sample
+                for k,v in some_dict.items():
+                    if 'PCT' in k:
+                        some_dict[k]=str(round(float(some_dict[k]),3))
+                writer.writerow(some_dict)

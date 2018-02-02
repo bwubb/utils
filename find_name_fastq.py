@@ -18,10 +18,10 @@ def get_args():
 		print '{}: {}'.format(a,b)
 	return args
 
-def find_fastqs(fqdir, run, lane, index):
-	fqs = sorted(glob.glob('{0}/{1}*_{2}_[1-2]_{3}.fastq.gz'.format(fqdir,run,lane,index)))
+def find_fastqs(fqdir, run, lane, index1,index2):
+	fqs = sorted(glob.glob('{0}/{1}*_{2}_[1-2]_{3}-{4}.fastq.gz'.format(fqdir,run,lane,index1,index2)))
 	if len(fqs) != 2:
-		print "Error:", fqs, "found matching pattern"
+		print "Error:", fqs, "found matching pattern",run,lane,index1,index2
 		return None
 	else:
 		return fqs
@@ -43,14 +43,14 @@ def work(file, fqdir, dest, rename):
 			if row[0].startswith('Run'):
 				writer.writerow(row)
 				continue
-			fqs = find_fastqs(fqdir, *row[:3])
+			fqs = find_fastqs(fqdir, *row[:4])
 			if not fqs:
 				writer.writerow(row)
 				continue
 			for fq in fqs:
-				print fq, '>', '/'.join([dest, new_name(fq, row[3])])
+				print fq, '>', '/'.join([dest, new_name(fq, row[4])])
 				if rename:
-					os.rename(fq, '/'.join([dest, new_name(fq, row[3])]))
+					os.rename(fq, '/'.join([dest, new_name(fq, row[4])]))
 			
 def main(argv=None):
 	args = get_args()

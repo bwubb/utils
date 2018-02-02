@@ -1,0 +1,21 @@
+
+
+
+
+
+
+rule FastqToSam:
+    input:
+        R1='FASTQ/{SAMPLE}_{RUN}_{LANE}_1_{INDEX}.fastq.gz',
+        R2='FASTQ/{SAMPLE}_{RUN}_{LANE}_2_{INDEX}.fastq.gz'
+    output:
+        'unaligned_bam/{SAMPLE}_{RUN}_{LANE}_{INDEX}.unaligned.bam'
+    params:
+        RG="{RUN}.{LANE}",
+        LB=config['resources']['library']['key'],
+        SM='{SAMPLE}'
+        PU="{INDEX}",
+        PL="illumina"
+    shell:
+        'java -jar $HOME/software/picard/builds/libs/picard.jar FastqToSam F1={input.R1} F2={input.R2} O={output} SM={params.SM} RG={params.RG} LB={params.LB} PU={params.PU} PL={params.PL}'
+
