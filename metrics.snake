@@ -4,8 +4,8 @@ import os
 import csv
 from collections import defaultdict
 
-with open('samples.list','r') as file:
-    SAMPLES=file.read().splitlines()
+with open(config.get('project',{}).get('sample_list','samples.list'),'r') as i:
+    SAMPLES=i.read().splitlines()
 
 header='SAMPLE BAIT_SET TOTAL_READS PCT_PF_READS PF_HQ_ALIGNED_READS PF_HQ_ALIGNED_Q20_BASES PF_HQ_MEDIAN_MISMATCHES PF_MISMATCH_RATE PF_HQ_ERROR_RATE PF_INDEL_RATE PCT_READS_ALIGNED_IN_PAIRS PCT_PF_READS_IMPROPER_PAIRS PCT_CHIMERAS PCT_ADAPTER'.split(' ')
 if config['resources'].get('disambiguate',False):
@@ -27,7 +27,7 @@ rule CollectAlignmentSummaryMetrics:
     output:
         "bam_input/final/{sample}/metrics/{reference}/alignment_summary.metrics"
     params:
-        reference=config['resources']['reference']['file'],
+        reference=config['resources']['reference']['fasta'],
         memory="10240m"
     shell:
         "java -Xmx{params.memory} -jar $HOME/software/picard/build/libs/picard.jar CollectAlignmentSummaryMetrics R={params.reference} I={input} O={output} VALIDATION_STRINGENCY=SILENT"
@@ -39,12 +39,12 @@ rule CollectHsMetrics:
         "bam_input/final/{sample}/metrics/{reference}/target.metrics",
         "bam_input/final/{sample}/metrics/{reference}/target_coverage.metrics"
     params:
-        reference=config['resources']['reference']['file'],
-        baits=config['resources']['baits']['intervals'],
-        targets=config['resources']['targets']['intervals'],
+        reference=config['resources']['reference']['fasta'],
+        baits=config['resources']['library']['picard.intervals'],
+        targets=config['resources']['library']['picard.intervals'],
         memory="10240m"
     wildcard_constraints:
-        target=config['resources']['targets']['key']
+        target=config['resources']['library']['targets_key']
     shell:
         "java -Xmx{params.memory} -jar $HOME/software/picard/build/libs/picard.jar CollectHsMetrics R={params.reference} I={input} O={output[0]} BAIT_INTERVALS={params.baits} TARGET_INTERVALS={params.targets} PER_TARGET_COVERAGE={output[1]} VALIDATION_STRINGENCY=SILENT"
 
@@ -54,8 +54,8 @@ rule CollectTargetedPcrMetrics:
     output:
         "bam_input/final/{sample}/metrics/{reference}/amplicon.metrics"
     params:
-        reference=config['resources']['reference']['file'],
-        targets=config['resources']['targets']['intervals'],
+        reference=config['resources']['reference']['fasta'],
+        targets=config['resources']['library']['picard.intervals'],
         #amplicons=config['amplicons']['intervals'],
         memory="10240m"
     shell:
@@ -67,7 +67,7 @@ rule CollectWgsMetrics:
     output:
         "bam_input/final/{sample}/metrics/{reference}/whole_genome.metrics"
     params:
-        reference=config['resources']['reference']['file'],
+        reference=config['resources']['reference']['fasta'],
         memory="10240m"
     shell:
         "java -Xmx{params.memory} -jar $HOME/software/picard/build/libs/picard.jar CollectWgsMetrics R={params.reference} I={input} O={output}"

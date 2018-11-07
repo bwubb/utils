@@ -1,0 +1,41 @@
+
+#sed 's/\\x3b/-/g'  myanno.hg19_multianno.vcf | sed 's/\\x3d/:/g'
+#Func.refGene=intergenic;Gene.refGene=LINC01346\x3bLINC01777;GeneDetail.refGene=dist\x3d192135\x3bdist\x3d267333;ExonicFunc.refGene=.;AAChange.refGene=.;ALLELE_END
+
+
+
+rule all:
+    input:
+
+rule tabix:
+    input:
+        '{path}/{file}.vcf.gz'
+    output:
+        '{path}/{file}.vcf.gz.tbi'
+    shell:
+        'tabix -p vcf {input}'
+
+rule normalize:
+    input:
+        '{path}/{file}.vcf.gz',
+        '{path}/{file}.vcf.gz.tbi'
+    output:
+        '{path}/{file}.norm.vcf.gz'
+    shell:
+        'bcftools norm -f "$HOME"/resources/Genomes/Human/GRCh37/human_g1k_v37.fasta {input[0]} | bcftools norm -m-both -O z -o {output}'
+
+rule table_annovar:
+    input:
+        '{path}/{file}.norm.vcf.gz',
+        '{path}/{file}.norm.vcf.gz.tbi'
+    output:
+        '{path}/{file}.norm.refGene.vcf.gz'
+    params:
+        prefix=lambda wildcards: f'{wildcards.path}/{wildcards.file}.norm',
+        db='"$HOME"/resources/annovar/humandb/'
+    shell:
+        '''
+        table_annovar.pl --vcfinput --onetranscript --polish --remove --buildver hg19 --out {params.prefix} --protocol refGene --operation g {input[0]} {params.db}
+        bgzip -c {params.prefix}.hg19_multianno.vcf > {output}
+        rm {params.prefix}.hg19_multianno.vcf
+        '''
