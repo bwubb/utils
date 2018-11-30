@@ -1,61 +1,67 @@
 #!/usr/bin/env python
 
 import argparse
+import datetime
 import glob
 import csv
 import os
 
+def find_FGC_fastqs(dir,run,lane,index):
+    fqs=sorted(glob.glob(f'{dir}/{run}_s_{lane}_[1-2]_{index}.fastq.gz'))
+    if len(fqs)!=2:
+        return None
+    else:
+        return fqs
 
-def get_args():
-	p = argparse.ArgumentParser()
-	p.add_argument('-i', '--infile', help='Sequence Project submission file')
-	p.add_argument('-f', '--fastq_dir', help='Directory where fastq files are located')
-	p.add_argument('-d', '--dest_dir', help='Destination directory')
-	p.add_argument('-R', '--rename', action='store_true', default=False, help='Rename files. Default(False)')
-	args = p.parse_args()
-	print "Arguments selected:"
-	for a, b in vars(args).items():
-		print '{}: {}'.format(a,b)
-	return args
 
-def find_fastqs(fqdir, run, lane, index1,index2):
-	fqs = sorted(glob.glob('{0}/{1}*_{2}_[1-2]_{3}-{4}.fastq.gz'.format(fqdir,run,lane,index1,index2)))
-	if len(fqs) != 2:
-		print "Error:", fqs, "found matching pattern",run,lane,index1,index2
-		return None
-	else:
-		return fqs
-
-def new_name(fq, sample):
-	x = os.path.basename(fq).split('_')
-	if x[1] == 's':
-		x.pop(1)
-	x.insert(0,sample)
-	return '_'.join(x)
-
-def work(file, fqdir, dest, rename):
-	m = file.split('.')
-	m.insert(-1, 'missing')
-	with open(file, 'rb') as infile, open('.'.join(m), 'wb') as missing:
-		reader = csv.reader(infile, delimiter='\t')
-		writer = csv.writer(missing, delimiter='\t')
-		for row in reader:
-			if row[0].startswith('Run'):
-				writer.writerow(row)
-				continue
-			fqs = find_fastqs(fqdir, *row[:4])
-			if not fqs:
-				writer.writerow(row)
-				continue
-			for fq in fqs:
-				print fq, '>', '/'.join([dest, new_name(fq, row[4])])
-				if rename:
-					os.rename(fq, '/'.join([dest, new_name(fq, row[4])]))
-			
 def main(argv=None):
-	args = get_args()
-	work(os.path.abspath(args.infile), os.path.abspath(args.fastq_dir), os.path.abspath(args.dest_dir), args.rename)
+    m=list(os.path.splitext(os.path.basename(argv.infile)))
+    m.insert(-1,'.missing')
+    with open(argv.infile,'r') as infile,open(''.join(m),'w') as missing:
+        reader=csv.reader(infile,delimiter='\t')
+        fields=next(reader)
+        writer=csv.DictWriter(missing,delimiter='\t',fieldnames=fields)
+        writer.writeheader()
+        sample=False
+        run=False
+        lane=False
+        lib=argv.lib
+        indices=[]
+        for field in fields:
+            print(field)
+            if 'sample' in field.lower():
+                sample=fields.index(field)
+            elif 'run' in field.lower():
+                run=fields.index(field)
+            elif 'lane' in field.lower():
+                lane=fields.index(field)
+            elif any([x in field.lower() for x in ['index','barcode']]):
+                indices.append(fields.index(field))
+            
 
+        #This is terrible.
+        assert not all(v is False for v in [run,lane,sample,len(indices)>0])#I have found the columns
+        
+        for row in reader:
+            index="-".join([row[x] for x in indices])
+            fqs=find_FGC_fastqs(argv.dir,row[run],row[lane],index)
+            new_R1_name=f'{row[sample]}_{lib}_{row[run]}_{row[lane]}_{index}_R1.fastq.gz'
+            new_R2_name=f'{row[sample]}_{lib}_{row[run]}_{row[lane]}_{index}_R2.fastq.gz'
+            print(fqs[0],f'> {argv.dir}/{new_R1_name}')
+            print(fqs[1],f'> {argv.dir}/{new_R2_name}')
+            if argv.action=='rename':
+                os.rename(fqs[0],f'{argv.dir}/{new_R1_name}')
+                os.rename(fqs[1],f'{argv.dir}/{new_R2_name}')
+        #actions
 
 if __name__ == '__main__':
-	main()
+    p=argparse.ArgumentParser()
+    p.add_argument('-i','--infile',help='Sequence Project submission file')
+    p.add_argument('-D','--dir',default='./FASTQ',help='Fastq directory')
+    p.add_argument('-L','--lib',help='Library Targets Key')
+    p.add_argument('--action',choices=['copy','rename','dryrun'],default='dryrun',help='What action to take.')
+    argv=p.parse_args()
+    print("Arguments selected:")
+    for a, b in vars(argv).items():
+        print(f' {a}: {b}')
+    main(argv)

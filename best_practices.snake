@@ -91,7 +91,7 @@ def sample_bam(wildcards):
         return BAMS[name]
     return 'bam_input/final/{sample}/{reference}/{sample}.ready.bam'.format(sample=name,reference=config['resources']['reference']['key'])
 
-localrules: all,all_metrics
+localrules: all,all_metrics,bam_list
 
 #They have wrappers for a lot of bioinformatics stuff
 rule all:
@@ -278,3 +278,9 @@ rule CollectHsMetrics:
 
 #--METRIC_ACCUMULATION_LEVEL READ_GROUP
 #--PER_TARGET_COVERAGE:File
+
+rule bam_list:
+    input:
+    output:
+    params:
+    run:
