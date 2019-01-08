@@ -7,6 +7,12 @@ from collections import defaultdict
 with open(config.get('project',{}).get('sample_list','samples.list'),'r') as i:
     SAMPLES=i.read().splitlines()
 
+with open(config['project']['bam_list'],'r') as b:
+    BAMS=dict(line.split('\t') for line in b.read().splitlines())
+
+def sample_bam(wildcards):
+    return BAMS[wildcards.sample]
+
 header='SAMPLE BAIT_SET TOTAL_READS PCT_PF_READS PF_HQ_ALIGNED_READS PF_HQ_ALIGNED_Q20_BASES PF_HQ_MEDIAN_MISMATCHES PF_MISMATCH_RATE PF_HQ_ERROR_RATE PF_INDEL_RATE PCT_READS_ALIGNED_IN_PAIRS PCT_PF_READS_IMPROPER_PAIRS PCT_CHIMERAS PCT_ADAPTER'.split(' ')
 if config['resources'].get('disambiguate',False):
     header+=['PCT_HUMAN','PCT_MOUSE','PCT_AMBIGUOUS']
@@ -23,7 +29,7 @@ rule all:
 
 rule CollectAlignmentSummaryMetrics:
     input:
-        "bam_input/final/{sample}/{reference}/{sample}.ready.bam"
+        sample_bam
     output:
         "bam_input/final/{sample}/metrics/{reference}/alignment_summary.metrics"
     params:
@@ -34,14 +40,14 @@ rule CollectAlignmentSummaryMetrics:
 
 rule CollectHsMetrics:
     input:
-        "bam_input/final/{sample}/{reference}/{sample}.ready.bam"
+        sample_bam
     output:
         "bam_input/final/{sample}/metrics/{reference}/target.metrics",
         "bam_input/final/{sample}/metrics/{reference}/target_coverage.metrics"
     params:
         reference=config['resources']['reference']['fasta'],
-        baits=config['resources']['library']['picard.intervals'],
-        targets=config['resources']['library']['picard.intervals'],
+        baits=config['resources']['library']['picard_intervals'],
+        targets=config['resources']['library']['picard_intervals'],
         memory="10240m"
     wildcard_constraints:
         target=config['resources']['library']['targets_key']
@@ -55,7 +61,7 @@ rule CollectTargetedPcrMetrics:
         "bam_input/final/{sample}/metrics/{reference}/amplicon.metrics"
     params:
         reference=config['resources']['reference']['fasta'],
-        targets=config['resources']['library']['picard.intervals'],
+        targets=config['resources']['library']['picard_intervals'],
         #amplicons=config['amplicons']['intervals'],
         memory="10240m"
     shell:
@@ -75,7 +81,8 @@ rule CollectWgsMetrics:
 rule Summary:
     input:
         expand("bam_input/final/{sample}/metrics/{reference}/alignment_summary.metrics",sample=SAMPLES,reference=config['resources']['reference']['key']),
-        expand("bam_input/final/{sample}/metrics/{reference}/target_coverage.metrics",sample=SAMPLES,reference=config['resources']['reference']['key'])
+        expand("bam_input/final/{sample}/metrics/{reference}/target.metrics",sample=SAMPLES,reference=config['resources']['reference']['key']),
+        
     output:
         'metrics_summary.txt'
     run:

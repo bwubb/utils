@@ -1,0 +1,9 @@
+'__default__':
+    'Mem': '12288'
+    'nt': '1'
+    'Job': '{wildcards.sample}_{rule}'
+    'oo': 'logs/cluster/{wildcards.sample}/{rule}.o'
+    'eo': 'logs/cluster/{wildcards.sample}/{rule}.e'
+'aln_pe':
+    'M': '65536'
+    'n': '16'

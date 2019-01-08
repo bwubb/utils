@@ -14,22 +14,22 @@ def mkdir_p(path):
         if exc.errno==errno.EEXIST and os.path.isdir(path):
             pass
 
-with open(config.get('project',{}).get('sample_list','samples.list'),'r') as infile:#sample_list in config, default is samples.list
-    SAMPLES=infile.read().splitlines()
-    for sample in SAMPLES:
-        mkdir_p('logs/cluster/%s' % sample)
-
-
 if config['project'].get('fastq_config',False):
     with open(config['project']['fastq_config']) as file:
         FILES=yaml.load(file)
+        SAMPLES=sorted(list(FILES.keys()))
+    for sample in SAMPLES:
+        mkdir_p('logs/cluster/%s' % sample)
 else:
+    with open(config.get('project',{}).get('sample_list','samples.list'),'r') as infile:#sample_list in config, default is samples.list
+        SAMPLES=infile.read().splitlines()
     #DATA=defaultdict(dict)
     FILES=defaultdict(lambda: #RUN
         defaultdict(lambda: #LANE
             defaultdict(lambda: #INDEX
                 defaultdict(list))))
     for sample in SAMPLES:
+        mkdir_p('logs/cluster/%s' % sample)
         files=sorted(glob.glob('FASTQ/{sample}_*.fastq.gz'.format(sample=sample)))
         assert all([len(files) >= 2,len(files) % 2 == 0]), 'Inproper number of files for {sample} : {files}'.format(sample=sample,files=files)
         fq_pairs=zip(files[::2],files[1::2])
@@ -279,8 +279,8 @@ rule CollectHsMetrics:
 #--METRIC_ACCUMULATION_LEVEL READ_GROUP
 #--PER_TARGET_COVERAGE:File
 
-rule bam_list:
-    input:
-    output:
-    params:
-    run:
+#rule bam_list:
+#    input:
+#    output:
+#    params:
+#    run:
