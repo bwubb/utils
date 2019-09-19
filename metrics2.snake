@@ -47,7 +47,7 @@ rule CollectAlignmentSummaryMetrics:
         reference=config['reference']['fasta'],
         memory="10240m"
     shell:
-        "java -Xmx{params.memory} -jar $HOME/software/picard/build/libs/picard.jar CollectAlignmentSummaryMetrics R={params.reference} I={input} O={output} VALIDATION_STRINGENCY=SILENT"
+        "java -Xmx{params.memory} -jar $HOME/software/picard/2.20.2/picard.jar CollectAlignmentSummaryMetrics R={params.reference} I={input} O={output} VALIDATION_STRINGENCY=SILENT"
 
 rule CollectInsertSizeMetrics:
     input:
@@ -61,7 +61,7 @@ rule CollectInsertSizeMetrics:
         MINIMUM_PCT=0.5
         #Default value = 0.05. but documentation states "If processing a small file, set the minimum percentage option (M) to 0.5, otherwise an error may occur."
     shell:
-        "java -Xmx{params.memory} -jar $HOME/software/picard/build/libs/picard.jar CollectInsertSizeMetrics R={params.reference} I={input} O={output[0]} H={output[1]} M={params.MINIMUM_PCT} VALIDATION_STRINGENCY=SILENT"
+        "java -Xmx{params.memory} -jar $HOME/software/picard/2.20.2/picard.jar CollectInsertSizeMetrics R={params.reference} I={input} O={output[0]} H={output[1]} M={params.MINIMUM_PCT} VALIDATION_STRINGENCY=SILENT"
 
 rule CollectHsMetrics:
     input:
@@ -77,20 +77,7 @@ rule CollectHsMetrics:
     wildcard_constraints:
         target=config['resources']['targets_key']
     shell:
-        "java -Xmx{params.memory} -jar $HOME/software/picard/build/libs/picard.jar CollectHsMetrics R={params.reference} I={input} O={output[0]} BAIT_INTERVALS={params.baits} TARGET_INTERVALS={params.targets} PER_TARGET_COVERAGE={output[1]} VALIDATION_STRINGENCY=SILENT"
-
-rule CollectTargetedPcrMetrics:
-    input:
-        "bam_input/final/{sample}/{reference}/{sample}.ready.bam"
-    output:
-        "bam_input/final/{sample}/metrics/{reference}/amplicon.metrics"
-    params:
-        reference=config['reference']['fasta'],
-        targets=config['resources']['picard_intervals'],
-        amplicons=config['resources']['amplicon_intervals'],
-        memory="10240m"
-    shell:
-        "java -Xmx{params.memory} -jar $HOME/software/picard/build/libs/picard.jar CollectTargetedPcrMetrics R={params.reference} I={input} O={output} AMPLICON_INTERVALS={params.amplicons} TARGET_INTERVALS={params.targets}"
+        "java -Xmx{params.memory} -jar $HOME/software/picard/2.20.2/picard.jar CollectHsMetrics R={params.reference} I={input} O={output[0]} BAIT_INTERVALS={params.baits} TARGET_INTERVALS={params.targets} PER_TARGET_COVERAGE={output[1]} VALIDATION_STRINGENCY=SILENT"
 
 rule CollectWgsMetrics:
     input:
@@ -101,7 +88,7 @@ rule CollectWgsMetrics:
         reference=config['reference']['fasta'],
         memory="10240m"
     shell:
-        "java -Xmx{params.memory} -jar $HOME/software/picard/build/libs/picard.jar CollectWgsMetrics R={params.reference} I={input} O={output}"
+        "java -Xmx{params.memory} -jar $HOME/software/picard/2.20.2/picard.jar CollectWgsMetrics R={params.reference} I={input} O={output}"
 
 rule Summary:
     input:
@@ -144,8 +131,13 @@ rule Summary:
                     for k,v in values.items():
                         if k in header:
                             some_dict[k]=v
-                if os.path.isfile('bam_input/work/{0}/disambres/input_summary.txt'.format(sample)):
-                    with open('bam_input/work/{0}/disambres/input_summary.txt'.format(sample),'r') as file:
+                disambres=False
+                if os.path.isfile('bam_input/work/{0}/GRCh37/disambres/input_summary.txt'.format(sample)):
+                    disambres='bam_input/work/{0}/GRCh37/disambres/input_summary.txt'.format(sample)
+                elif os.path.isfile('bam_input/work/{0}/GRCh37/disambres/mapped_summary.txt'.format(sample)):
+                    disambres='bam_input/work/{0}/GRCh37/disambres/input_summary.txt'.format(sample)
+                if disambres:
+                    with open(disambres,'r') as file:
                         try:
                             values=dict(zip(file.__next__().rstrip().split('\t'),file.__next__().rstrip().split('\t')))
                             total=sum(int(values.get(k,0)) for k in ['unique species A pairs','unique species B pairs','ambiguous pairs'])

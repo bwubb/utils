@@ -1,6 +1,7 @@
 import os
 import sys
 import csv
+import math
 from collections import defaultdict
 
 #CODEX2
@@ -23,7 +24,7 @@ for i,file in enumerate(input):
         print(f'Reading {segments_file.name}...')
         reader=csv.DictReader(segments_file,delimiter='\t')
         for row in reader:
-            segments[row['sample_name']].append({key:row[key] for key in ['chr','st_bp','ed_bp','cnv','copy_no']})
+            segments[row['sample_name']].append({key:row[key] for key in ['chr','st_bp','ed_bp','cnv','copy_no','lratio','st_exon','ed_exon','raw_cov']})
     samples=segments.keys()
     #
     for sample in samples:
@@ -31,7 +32,9 @@ for i,file in enumerate(input):
         try:
             snakemake
         except NameError:
-            out_name=f'{os.path.dirname(output[i])}/{sample}.codex2.{os.path.basename(output[i])}'
+            #print(output[i])
+            #print(f'{os.path.dirname(output[i])}')
+            out_name=f'{os.path.dirname(os.path.abspath(input[i]))}/{sample}.{os.path.basename(output[i])}'
         else:
             out_name=(output[f] for f in output if os.path.basename(f)==f'{sample}.codex2.segments_CNV.bed')
         with open(out_name,'w') as bed_file:
@@ -50,7 +53,18 @@ for i,file in enumerate(input):
                     length=end-start+1
                 except ValueError:
                     length='.'
-                name=f"{length}bp;{segment['cnv']}"#consider adding gain,amp,del,loss
+                probes=f"{int(math.fabs(int(segment['ed_exon'])-int(segment['st_exon'])))}"
+                v=f"{float(segment['copy_no'])/2:.{5}f}"
+                try:
+                    log2=f"{math.log(float(v),2):.{5}f}"
+                except ValueError as e:
+                    #print(e,segment['copy_no'],v)
+                    log2='-1.00000'
+                weight=segment["lratio"]
+                depth=segment["norm_cov"]
+                name=f"log2={log2};depth={depth};weight={weight};probes={probes}"
+                #name=f"{length}bp;{segment['cnv']}"#consider adding gain,amp,del,loss
+                
                 score=f"{float(segment['copy_no'])*100:.{0}f}"
                 bed_row={'chrom':segment['chr'],'chromStart':f"{start}",'chromEnd':f"{end}",'name':f"{name}",'score':f"{score}",'strand':strand}
                 writer.writerow(bed_row)
