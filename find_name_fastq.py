@@ -42,16 +42,18 @@ def main(argv=None):
         #This is terrible.
         assert not all(v is False for v in [run,lane,sample,len(indices)>0])#I have found the columns
         
+        #CLEAN THIS ALLL UP YOU AMATEUR
         for row in reader:
             index="-".join([row[x] for x in indices])
             fqs=find_FGC_fastqs(argv.dir,row[run],row[lane],index)
             new_R1_name=f'{row[sample]}_{lib}_{row[run]}_{row[lane]}_{index}_R1.fastq.gz'
             new_R2_name=f'{row[sample]}_{lib}_{row[run]}_{row[lane]}_{index}_R2.fastq.gz'
-            print(fqs[0],f'> {argv.dir}/{new_R1_name}')
-            print(fqs[1],f'> {argv.dir}/{new_R2_name}')
-            if argv.action=='rename':
-                os.rename(fqs[0],f'{argv.dir}/{new_R1_name}')
-                os.rename(fqs[1],f'{argv.dir}/{new_R2_name}')
+            if fqs:
+                print(fqs[0],f'> {argv.dir}/{new_R1_name}')
+                print(fqs[1],f'> {argv.dir}/{new_R2_name}')
+                if argv.action=='rename':
+                    os.rename(fqs[0],f'{argv.dir}/{new_R1_name}')
+                    os.rename(fqs[1],f'{argv.dir}/{new_R2_name}')
         #actions
 
 if __name__ == '__main__':

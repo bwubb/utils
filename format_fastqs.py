@@ -4,6 +4,7 @@ import glob
 import re
 import os
 import datetime
+import argparse
 from collections import defaultdict
 from yaml.representer import Representer
 yaml.add_representer(defaultdict, Representer.represent_dict)
@@ -34,26 +35,32 @@ def make_info(r2):
         files=[fq1,fq2]
         sample_data[sample_name][ID]={'LB':LB,'PU':PU,'files':files}
     return sample_data
-    
-    
+
+def write_output(outdict,filename):
+    with open(f'{filename}_fastq.yaml','w') as outfile:
+        yaml.dump(outdict,outfile)
+    with open(f'{filename}_sample.list','w') as file:
+        for i in sorted(outdict.keys()):
+            file.write(f'{i}\n')
+
 def main(argv=None):
-    all_fastqs=glob.glob('FASTQ/*.fastq.gz')
-    #print(all_fastqs)
+    p=argparse.ArgumentParser()
+    p.add_argument('--dir',default='FASTQ',help='snakemake config yaml')
+    args=p.parse_args()
+    all_fastqs=glob.glob(f'{args.dir}/*.fastq.gz')
     r2=subset_R2_fastqs(all_fastqs)
     sample_data=make_info(r2)
+    write_output(sample_data,f'{datetime.date.today().strftime("%Y%m%d")}')
+    
+    outfile_dict=defaultdict(lambda: defaultdict(dict))
+    for Sample,v in sample_data.items():
+        for RunLane,v1 in v.items():
+            if RunLane not in outfile_dict[v1['LB']][Sample].keys():
+                outfile_dict[v1['LB']][Sample][RunLane]=v1
+    
+    for key in outfile_dict.keys():
+        write_output(outfile_dict[key],f'{key}.{datetime.date.today().strftime("%Y%m%d")}')
 
-
-    with open(f'fastqs.{datetime.date.today().strftime("%Y%m%d")}.yaml','w') as outfile:
-        yaml.dump(sample_data,outfile)
-
-    with open(f'samples.{datetime.date.today().strftime("%Y%m%d")}.list','w') as file:
-        for sample in sample_data.keys():
-            file.write(f'{sample}\n')
-
-#    for key in sample_data.keys():
-#        print(key)
-#        with open(f'bam_input/final/{key}/GRCh37/fastqs.yaml','w') as outfile:
-#            yaml.dump(sample_data[key],outfile)
 
 if __name__=='__main__':
     main()
