@@ -110,7 +110,6 @@ def get_args():
     p=argparse.ArgumentParser()
     p.add_argument('-I','--input_fp',default='samples.list',help='Sample list')
     p.add_argument('-O','--output_fp',default='metrics_summary.csv',help='Output metrics.csv')
-    p.add_argument('--header_fp',default='annovar_header.txt',help='metrics header file')
     p.add_argument('-R','--ref',default='GRCh37',help='reference key')
     p.add_argument('--PDX',choices=['True','False'],default='False',help='PDX disambiguation from Mouse')
     return p.parse_args()
@@ -123,13 +122,11 @@ def main(argv=None):
         args=get_args()
         input=args.input_fp
         output=args.output_fp
-        header_file=args.header_fp
         ref=args.ref
         PDX=(args.PDX=='True')
     else:
         input=snakemake.params['sample_list']
         output=snakemake.output['csv']
-        header_file=snakemake.params['header_file']
         ref=snakemake.params['ref']
         PDX=(snakemake.params['PDX']=='True')
     

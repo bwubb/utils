@@ -20,21 +20,11 @@ if config['resources'].get('disambiguate',False):
 header+=['PCT_DUP']
 header+='PCT_SELECTED_BASES MEAN_TARGET_COVERAGE MEDIAN_TARGET_COVERAGE MAX_TARGET_COVERAGE PCT_USABLE_BASES_ON_TARGET ZERO_CVG_TARGETS_PCT PCT_TARGET_BASES_lt_20X PCT_TARGET_BASES_40X PCT_TARGET_BASES_100X'.split(' ')
 
-localrules:Summary,all_amplicon
+localrules:Summary
 
 rule standard_summary:
     input:
-        expand('{project}.{date}.metrics_summary.csv',project=config['project']['name'],date=datetime.today().strftime('%Y%m%d'))
-
-rule target_coverage_summary:
-    input:
-        expand('{project}.{date}.mean_target_coverage.txt',project=config['project']['name'],date=datetime.today().strftime('%Y%m%d'))
-
-rule all_amplicon:
-    input:
-        expand('bam_input/final/{sample}/{reference}/metrics/amplicon.metrics',sample=SAMPLES,reference=config['reference']['key']),
-        expand("bam_input/final/{sample}/{reference}/metrics/insert_size.metrics",sample=SAMPLES,reference=config['reference']['key']),
-        expand("bam_input/final/{sample}/{reference}/metrics/target.metrics",sample=SAMPLES,reference=config['reference']['key'])
+        expand('{project}.{targets}.{date}.metrics_summary.csv',project=config['project']['name'],targets=config['resources']['targets_key'],date=datetime.today().strftime('%Y%m%d'))
 
 ###############################################
 
@@ -87,24 +77,13 @@ rule Samtools_flagstat:
     shell:
         "samtools flagstat {input} > {output}"
 
-rule CollectWgsMetrics:
-    input:
-        "bam_input/final/{sample}/{reference}/{sample}.ready.bam"
-    output:
-        "bam_input/final/{sample}/{reference}/metrics/whole_genome.metrics"
-    params:
-        reference=config['reference']['fasta'],
-        memory="10240m"
-    shell:
-        "java -Xmx{params.memory} -jar $HOME/software/picard/2.20.7/picard.jar CollectWgsMetrics R={params.reference} I={input} O={output}"
-
 rule Summary:
     input:
         expand("bam_input/final/{sample}/{reference}/metrics/alignment_summary.metrics",sample=SAMPLES,reference=config['reference']['key']),
         expand("bam_input/final/{sample}/{reference}/metrics/target.metrics",sample=SAMPLES,reference=config['reference']['key']),
         expand("bam_input/final/{sample}/{reference}/metrics/flagstat.metrics",sample=SAMPLES,reference=config['reference']['key'])
     output:
-        csv='{project}.{date}.metrics_summary.csv',project=config['project']['name'],date=datetime.today().strftime('%Y%m%d')
+        csv='{project}.{date}.metrics_summary.csv'
     params:
         PDX=str('disambiguate' in config),
         sample_list=config['project']['sample_list'],

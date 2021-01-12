@@ -74,7 +74,7 @@ rule MarkDuplicates:
     params:
         memory="10240m"
     shell:
-        "java -Xmx{params.memory} -jar $HOME/software/picard/2.20.2/picard.jar MarkDuplicates I={input} O={output.bam} M={output.metrics} CREATE_INDEX=true VALIDATION_STRINGENCY=LENIENT"
+        "java -Xmx{params.memory} -jar $HOME/software/picard/2.20.7/picard.jar MarkDuplicates I={input} O={output.bam} M={output.metrics} CREATE_INDEX=true VALIDATION_STRINGENCY=LENIENT"
 
 rule RealignerTargetCreator:
     input:
@@ -160,7 +160,7 @@ rule ValidateSamFile:
     params:
         memory="10240m"
     shell:
-        "java -Xmx{params.memory} -jar $HOME/software/picard/2.20.2/picard.jar ValidateSamFile I={input} O={output} MODE=SUMMARY"
+        "java -Xmx{params.memory} -jar $HOME/software/picard/2.20.7/picard.jar ValidateSamFile I={input} O={output} MODE=SUMMARY"
 
 rule validation_pass:
     input:

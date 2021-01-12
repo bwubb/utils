@@ -6,7 +6,7 @@
     'eo': 'logs/cluster/{wildcards.sample}/{rule}.e'
 'aln_pe':
     'Mem': '65536'
-    'nt': '16'
+    'nt': '8'
 'mouse_aln_pe':
     'Mem': '65536'
-    'nt': '16'
+    'nt': '8'

@@ -8,10 +8,7 @@ import os
 
 def find_FGC_fastqs(dir,run,lane,index):
     fqs=sorted(glob.glob(f'{dir}/{run}_s_{lane}_[1-2]_{index}.fastq.gz'))
-    if len(fqs)!=2:
-        return None
-    else:
-        return fqs
+    return fqs
 
 
 def main(argv=None):
@@ -20,8 +17,8 @@ def main(argv=None):
     with open(argv.infile,'r') as infile,open(''.join(m),'w') as missing:
         reader=csv.reader(infile,delimiter='\t')
         fields=next(reader)
-        writer=csv.DictWriter(missing,delimiter='\t',fieldnames=fields)
-        writer.writeheader()
+        writer=csv.writer(missing,delimiter='\t')
+        writer.writerow(fields)
         sample=False
         run=False
         lane=False
@@ -48,12 +45,19 @@ def main(argv=None):
             fqs=find_FGC_fastqs(argv.dir,row[run],row[lane],index)
             new_R1_name=f'{row[sample]}_{lib}_{row[run]}_{row[lane]}_{index}_R1.fastq.gz'
             new_R2_name=f'{row[sample]}_{lib}_{row[run]}_{row[lane]}_{index}_R2.fastq.gz'
-            if fqs:
-                print(fqs[0],f'> {argv.dir}/{new_R1_name}')
-                print(fqs[1],f'> {argv.dir}/{new_R2_name}')
-                if argv.action=='rename':
-                    os.rename(fqs[0],f'{argv.dir}/{new_R1_name}')
-                    os.rename(fqs[1],f'{argv.dir}/{new_R2_name}')
+            if len(fqs)==2:
+                try:
+                    print(fqs[0],f'> {argv.dir}/{new_R1_name}')
+                    print(fqs[1],f'> {argv.dir}/{new_R2_name}')
+                    if argv.action=='rename':
+                        os.rename(fqs[0],f'{argv.dir}/{new_R1_name}')
+                        os.rename(fqs[1],f'{argv.dir}/{new_R2_name}')
+                except TypeError:
+                    print(f'TypeError: {fqs[0]} fqs[1]')
+            elif os.path.isfile(f'{argv.dir}/{new_R1_name}'):
+                print(f'File already renamed: {row[sample]}_{lib}_{row[run]}_{row[lane]}_{index}')
+            else:
+                writer.writerow(row)
         #actions
 
 if __name__ == '__main__':
