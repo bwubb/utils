@@ -32,7 +32,7 @@ def target_metrics(FileO):
 
 def disambiguate_metrics(FileO):
     METRICS={}
-    reader=csv.DictReader(FileO,delimiter='\t',fieldnames=line.rstrip().split('\t'))
+    reader=csv.DictReader(FileO,delimiter='\t')
     LINE=reader.__next__()
     #values=dict(zip(file.__next__().rstrip().split('\t'),file.__next__().rstrip().split('\t')))
     total=0.0
@@ -46,13 +46,14 @@ def disambiguate_metrics(FileO):
             METRICS[k]=F(float(LINE.get(v,0.0)))
         except (IndexError,ZeroDivisionError) as e:
             print(f'{e}: in {FileO.name}')
+    #print(METRICS)
     return METRICS
 
 def run_sample(sample,ref='GRCh37',PDX=False):
     OUT_METRICS=defaultdict(str)
     #Duplicates
     try:
-        dup_file=os.path.abspath(f'bam_input/final/{sample}/{ref}/metrics/flagstat.metrics')
+        dup_file=os.path.abspath(f'metrics/{ref}/{sample}/flagstat.metrics')
         with open(dup_file,'r') as FILE:
             OUT_METRICS.update(flagstat_metrics(FILE))
     except FileNotFoundError as e:
@@ -60,7 +61,7 @@ def run_sample(sample,ref='GRCh37',PDX=False):
     
     #Alignment
     try:
-        aln_file=os.path.abspath(f'bam_input/final/{sample}/{ref}/metrics/alignment_summary.metrics')
+        aln_file=os.path.abspath(f'metrics/{ref}/{sample}/alignment_summary.metrics')
         with open(aln_file,'r') as FILE:
             OUT_METRICS.update(alignment_metrics(FILE))
     except FileNoFoundError as e:
@@ -68,7 +69,7 @@ def run_sample(sample,ref='GRCh37',PDX=False):
     
     #Target metrics
     try:
-        target_file=os.path.abspath(f'bam_input/final/{sample}/{ref}/metrics/target.metrics')
+        target_file=os.path.abspath(f'metrics/{ref}/{sample}/target.metrics')
         with open(target_file,'r') as FILE:
             OUT_METRICS.update(target_metrics(FILE))
             OUT_METRICS['PCT_TARGET_BASES_lt_20X']=str(1.0-float(OUT_METRICS['PCT_TARGET_BASES_20X']))
@@ -78,7 +79,7 @@ def run_sample(sample,ref='GRCh37',PDX=False):
     #Disambig
     if PDX:
         try:
-            disambres_file=os.path.abspath(f'bam_input/work/{sample}/{ref}/disambres/input_summary.txt')
+            disambres_file=os.path.abspath(f'bam_input/work/{sample}/disambres/mapped_summary.txt')
             with open(disambres_file,'r') as FILE:
                 OUT_METRICS.update(disambiguate_metrics(FILE))
         except FileNotFoundError as e:
@@ -98,7 +99,10 @@ def format_outrow(OUT_METRICS):
     return FINAL_METRICS
 
 def write_summary(SAMPLES,output_fp,ref,PDX):
-    header='SAMPLE BAIT_SET TOTAL_READS PCT_PF_READS PF_HQ_ALIGNED_READS PCT_READS_ALIGNED_IN_PAIRS PCT_DUP PCT_SELECTED_BASES MEAN_TARGET_COVERAGE MEDIAN_TARGET_COVERAGE MAX_TARGET_COVERAGE PCT_USABLE_BASES_ON_TARGET ZERO_CVG_TARGETS_PCT PCT_TARGET_BASES_20X PCT_TARGET_BASES_100X'.split(' ')
+    if PDX==True:
+        header=header='SAMPLE BAIT_SET TOTAL_READS PCT_HUMAN PCT_MOUSE PCT_AMBIGUOUS PCT_PF_READS PF_HQ_ALIGNED_READS PCT_READS_ALIGNED_IN_PAIRS PCT_DUP PCT_SELECTED_BASES MEAN_TARGET_COVERAGE MEDIAN_TARGET_COVERAGE MAX_TARGET_COVERAGE PCT_USABLE_BASES_ON_TARGET ZERO_CVG_TARGETS_PCT PCT_TARGET_BASES_20X PCT_TARGET_BASES_100X'.split(' ')
+    else:
+        header='SAMPLE BAIT_SET TOTAL_READS PCT_PF_READS PF_HQ_ALIGNED_READS PCT_READS_ALIGNED_IN_PAIRS PCT_DUP PCT_SELECTED_BASES MEAN_TARGET_COVERAGE MEDIAN_TARGET_COVERAGE MAX_TARGET_COVERAGE PCT_USABLE_BASES_ON_TARGET ZERO_CVG_TARGETS_PCT PCT_TARGET_BASES_20X PCT_TARGET_BASES_100X'.split(' ')
     with open(output_fp,'w') as OFILE:
         writer=csv.DictWriter(OFILE,delimiter=',',fieldnames=header,restval='.',extrasaction='ignore')
         writer.writeheader()
@@ -115,21 +119,11 @@ def get_args():
     return p.parse_args()
 
 def main(argv=None):
-    try:
-        snakemake
-        #samples file in params
-    except NameError:
-        args=get_args()
-        input=args.input_fp
-        output=args.output_fp
-        ref=args.ref
-        PDX=(args.PDX=='True')
-    else:
-        input=snakemake.params['sample_list']
-        output=snakemake.output['csv']
-        ref=snakemake.params['ref']
-        PDX=(snakemake.params['PDX']=='True')
-    
+    args=get_args()
+    input=args.input_fp
+    output=args.output_fp
+    ref=args.ref
+    PDX=(args.PDX=='True')
     print(f'-I {input} -O {output} -R {ref} --PDX {PDX}')
     with open(input,'r') as file:
         SAMPLES=file.read().splitlines()
