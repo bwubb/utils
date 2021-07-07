@@ -41,7 +41,8 @@ def write_output(outdict,filename):
 
 def main(argv=None):
     p=argparse.ArgumentParser()
-    p.add_argument('-d','--dir',default='FASTQ',help='FASTQ dir')
+    p.add_argument('--dir',default='FASTQ',help='FASTQ dir')
+    p.add_argument('--date',action='store_true',default=False,help='add date to files')
     args=p.parse_args()
     
     all_fastqs=glob.glob(f'{args.dir}/*.fastq.gz')

@@ -22,7 +22,7 @@ def main(argv=None):
         sample=False
         run=False
         lane=False
-        lib=argv.lib
+        lib=False
         indices=[]
         for field in fields:
             print(field)
@@ -34,6 +34,8 @@ def main(argv=None):
                 lane=fields.index(field)
             elif any([x in field.lower() for x in ['index','barcode']]):
                 indices.append(fields.index(field))
+            elif 'lib' in field.lower():
+                lib=fields.index(field)
             
 
         #This is terrible.
@@ -43,8 +45,8 @@ def main(argv=None):
         for row in reader:
             index="-".join([row[x] for x in indices])
             fqs=find_FGC_fastqs(argv.dir,row[run],row[lane],index)
-            new_R1_name=f'{row[sample]}_{lib}_{row[run]}_{row[lane]}_{index}_R1.fastq.gz'
-            new_R2_name=f'{row[sample]}_{lib}_{row[run]}_{row[lane]}_{index}_R2.fastq.gz'
+            new_R1_name=f'{row[sample]}_{row[lib]}_{row[run]}_{row[lane]}_{index}_R1.fastq.gz'
+            new_R2_name=f'{row[sample]}_{row[lib]}_{row[run]}_{row[lane]}_{index}_R2.fastq.gz'
             if len(fqs)==2:
                 try:
                     print(fqs[0],f'> {argv.dir}/{new_R1_name}')
@@ -55,7 +57,7 @@ def main(argv=None):
                 except TypeError:
                     print(f'TypeError: {fqs[0]} fqs[1]')
             elif os.path.isfile(f'{argv.dir}/{new_R1_name}'):
-                print(f'File already renamed: {row[sample]}_{lib}_{row[run]}_{row[lane]}_{index}')
+                print(f'File already renamed: {row[sample]}_{row[lib]}_{row[run]}_{row[lane]}_{index}')
             else:
                 writer.writerow(row)
         #actions
@@ -64,7 +66,7 @@ if __name__ == '__main__':
     p=argparse.ArgumentParser()
     p.add_argument('-i','--infile',help='Sequence Project submission file')
     p.add_argument('-D','--dir',default='./FASTQ',help='Fastq directory')
-    p.add_argument('-L','--lib',help='Library Targets Key')
+    #p.add_argument('-L','--lib',help='Library Targets Key')
     p.add_argument('--action',choices=['copy','rename','dryrun'],default='dryrun',help='What action to take.')
     argv=p.parse_args()
     print("Arguments selected:")
