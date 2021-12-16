@@ -33,9 +33,9 @@ def make_info(r2):
     return sample_data
 
 def write_output(outdict,filename):
-    with open(f'{filename}_fastq.yaml','w') as outfile:
+    with open(f'fastq.yaml','w') as outfile:
         yaml.dump(outdict,outfile)
-    with open(f'{filename}_sample.list','w') as file:
+    with open(f'sample.list','w') as file:
         for i in sorted(outdict.keys()):
             file.write(f'{i}\n')
 
@@ -77,3 +77,6 @@ def main(argv=None):
 
 if __name__=='__main__':
     main()
+
+#full project.yaml with sample id, and lib and bam and ref version of the bam, fasta, etc.
+# resource yaml

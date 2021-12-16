@@ -404,49 +404,51 @@ def main(argv=None):
     writer.writeheader()
     print(header)
     VcfReader=vcfpy.Reader.from_path(INPUT)
-    for record in VcfReader:
-        transcript={}
-        for gene in record.INFO['Gene.refGene']:
-            transcript[gene]=[pTX.get(gene,'')]
-        #print(transcript)
-        if 'UNKNOWN' in record.INFO.get('AAChange.refGene'):
-            #Hard Skip1
-            continue
-        DATA=Multianno(record,transcript)
-        if pTX.get(gene,'')!='' and len(set(record.INFO['Gene.refGene']))==1 and pTX.get(gene,'') not in DATA.fields['Transcript.refGene']:
-            #Hard skip2
-            #It was found annoying to have transctipt1|transcript2 and niether of them were the princpal one.
-            continue
-        if argv['mode']=='single':
-            if argv['samples']==None:
-                writer.writerow(DATA())
+    try:
+        for record in VcfReader:
+            transcript={}
+            for gene in record.INFO['Gene.refGene']:
+                transcript[gene]=[pTX.get(gene,'')]
+            #print(transcript)
+            if 'UNKNOWN' in record.INFO.get('AAChange.refGene'):
+                #Hard Skip1
+                continue
+            DATA=Multianno(record,transcript)
+            if pTX.get(gene,'')!='' and len(set(record.INFO['Gene.refGene']))==1 and pTX.get(gene,'') not in DATA.fields['Transcript.refGene']:
+                #Hard skip2
+                #It was found annoying to have transctipt1|transcript2 and niether of them were the princpal one.
+                continue
+            if argv['mode']=='single':
+                if argv['samples']==None:
+                    writer.writerow(DATA())
+                    ANNOTATIONS[DATA.fields['GenomicRegion.refGene'][0]]+=1
+                else:
+                    for sample in argv['samples']:
+                        #try except SampleError
+                        if DATA(sample)['Zyg'] not in ['.','HOM_REF']:
+                            writer.writerow(DATA(sample))
+                            ANNOTATIONS[DATA.fields['GenomicRegion.refGene'][0]]+=1
+            elif argv['mode']=='paired':
+                tumor=argv['samples'][0]
+                normal=argv['samples'][1]
+                #debug ^
+                writer.writerow(DATA(tumor,normal))
                 ANNOTATIONS[DATA.fields['GenomicRegion.refGene'][0]]+=1
-            else:
-                for sample in argv['samples']:
-                    #try except SampleError
-                    if DATA(sample)['Zyg'] not in ['.','HOM_REF']:
+            #Warning about fields not found in header
+            elif argv['mode']=='cohort':
+                called_samples=[call.sample for call in record.calls if call.called]
+                c=0
+                for sample in called_samples:
+                    if DATA.call_record[sample][0]!='HOM_REF':
+                        #call_record is stored as list
+                        c+=1
                         writer.writerow(DATA(sample))
-                        ANNOTATIONS[DATA.fields['GenomicRegion.refGene'][0]]+=1
-        elif argv['mode']=='paired':
-            tumor=argv['samples'][0]
-            normal=argv['samples'][1]
-            #debug ^
-            writer.writerow(DATA(tumor,normal))
-            ANNOTATIONS[DATA.fields['GenomicRegion.refGene'][0]]+=1
-        #Warning about fields not found in header
-        elif argv['mode']=='cohort':
-            called_samples=[call.sample for call in record.calls if call.called]
-            c=0
-            #print(DATA.call_record)
-            for sample in called_samples:
-                if DATA.call_record[sample][0] not in ['.','HOM_REF']:
-                    #call_record is stored as list
-                    c+=1
-                    writer.writerow(DATA(sample))
-            print(f'{c} samples')
-            ANNOTATIONS[DATA.fields['GenomicRegion.refGene'][0]]+=1
-        #elif argv['mode']=='no_sample':
-            
+                print(f'{c} samples')
+                ANNOTATIONS[DATA.fields['GenomicRegion.refGene'][0]]+=1
+            #elif argv['mode']=='no_sample':
+                
+    except IndexError as e:
+        print(f"{e}:")
     OUTPUT.close()
     report_items(ANNOTATIONS)
     
