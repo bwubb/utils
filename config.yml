@@ -1,7 +1,9 @@
-
+---
 project:
     name: ''
-    fastq_list: 'fastqs.yaml'
+    sample_list: 'sample.list'
+    bam_tale: 'bam.table'
+    fastq_config: 'fastq.yaml'
 reference:
     fasta: '/home/bwubb/resources/Genomes/Human/GRCh37/human_g1k_v37.fasta.gz'
     key: 'GRCh37'

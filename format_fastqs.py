@@ -34,7 +34,7 @@ def make_info(r2):
 
 def write_output(outdict,filename):
     with open(f'fastq.yaml','w') as outfile:
-        yaml.dump(outdict,outfile)
+        yaml.dump(outdict,outfile,default_flow_style=False)
     with open(f'sample.list','w') as file:
         for i in sorted(outdict.keys()):
             file.write(f'{i}\n')
@@ -46,8 +46,11 @@ def main(argv=None):
     args=p.parse_args()
     
     all_fastqs=glob.glob(f'{args.dir}/*.fastq.gz')
+    print(f"{len(all_fastqs)} found.")
     r2=subset_R2_fastqs(all_fastqs)
+    #print(r2)
     sample_data=make_info(r2)
+    #print(sample_data)
     
     validate=defaultdict(set)
     for sample_key,sample_vals in sample_data.items():
@@ -66,13 +69,14 @@ def main(argv=None):
     
     write_output(sample_data,f'{datetime.date.today().strftime("%Y%m%d")}')
     
-    outfile_dict=defaultdict(lambda: defaultdict(dict))
-    for Sample,v in sample_data.items():
-        for RunLane,v1 in v.items():
-            if RunLane not in outfile_dict[v1['LB']][Sample].keys():
-                outfile_dict[v1['LB']][Sample][RunLane]=v1
-    for key in outfile_dict.keys():
-        write_output(outfile_dict[key],f'{datetime.date.today().strftime("%Y%m%d")}.{key}')
+    #Not sure what this was stupposed to be
+    #outfile_dict=defaultdict(lambda: defaultdict(dict))
+    #for Sample,v in sample_data.items():
+    #    for RunLane,v1 in v.items():
+    #        if RunLane not in outfile_dict[v1['LB']][Sample].keys():
+    #            outfile_dict[v1['LB']][Sample][RunLane]=v1
+    #for key in outfile_dict.keys():
+    #    write_output(outfile_dict[key],f'{datetime.date.today().strftime("%Y%m%d")}.{key}')
 
 
 if __name__=='__main__':

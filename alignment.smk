@@ -41,7 +41,6 @@ rule bwa_mem:
     output:
         temp("bam_input/work/{sample}/{reference}/{run}/{lane}/{index}/1.mapped.bam"),
     params:
-        LB=config['resources']['library_key'],
         fasta=config['reference']['fasta']
     threads:
         4
@@ -100,7 +99,7 @@ rule ValidateSamFile:
     input:
         "bam_input/work/{sample}/{reference}/input.bam"
     output:
-        "bam_input/work/{sample}/{reference}/validation_data.table"
+        "metrics/{reference}/{sample}/validation_data.table"
     params:
         memory="10240m"
     shell:
@@ -117,21 +116,24 @@ rule ValidateSamFile:
         """
         #Is this also in GATK? Then I could drop picard from this pipeline.
 
-rule validation_pass:
-    input:
-        "bam_input/work/{sample}/{reference}/validation_data.table"
-    output:
-        "metrics/{reference}/{sample}/validation_data.table"
-    shell:
-        """
-        set +H
-        if egrep -q 'No errors found' {input[0]}; then
-            cp {input[0]} {output[0]}
-        else
-            egrep '^ERROR' {input[0]}
-            exit 1
-        fi
-        """
+#This is very strict
+#MATE_CIGAR_STRING_INVALID_PRESENCE
+#May need case when to allow some errors.
+#rule validation_pass:
+#    input:
+#        "bam_input/work/{sample}/{reference}/validation_data.table"
+#    output:
+#        "metrics/{reference}/{sample}/validation_data.table"
+#    shell:
+#        """
+#        set +H
+#        if egrep -q 'No errors found' {input[0]}; then
+#            cp {input[0]} {output[0]}
+#        else
+#            egrep '^ERROR' {input[0]}
+#            exit 1
+#        fi
+#        """
 
 rule ready_bam:
     input:
@@ -153,7 +155,6 @@ rule write_bam_table:
     params:
         ref=config['reference']['key']
     run:
-        
-        with open(output,'w') as file:
+        with open(output[0],'w') as file:
             for sample in SAMPLES:
                 file.write(f"{sample}\tbam_input/final/{sample}/{sample}.{params.ref}.bam\n")

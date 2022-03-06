@@ -3,6 +3,7 @@ import os
 import csv
 import argparse
 from collections import defaultdict
+from collections import OrderedDict
 
 def flagstat_metrics(FileO):
     TOTAL=int(FileO.readline().rstrip().split(' ')[0])
@@ -117,10 +118,6 @@ def run_sample(sample,targets,ref='GRCh37',PDX=False):
 #        except FileNotFoundError as e:
 #            print(f'{e}: {disambres_file}')
 
-
-
-
-
 def format_outrow(OUT_METRICS):
     FINAL_METRICS={}
     for k,v in OUT_METRICS.items():
@@ -147,14 +144,39 @@ def write_summary(SAMPLES,output_fp,targets,ref,PDX):
             SAMPLE_METRICS=format_outrow(run_sample(sample,targets,ref,PDX))
             writer.writerow(SAMPLE_METRICS)
 
+def target_coverage_summary(SAMPLES,targets,out_fp):
+    #"metrics/{targets}/{sample}/target_coverage.metrics"
+    target_coverage=defaultdict(lambda: defaultdict(float))
+    key_order=[]
+    for sample in SAMPLES:
+        #check for file:
+        sample_file=os.path.abspath(f"metrics/{targets}/{sample}/target_coverage.metrics")
+        with open(sample_file,'r') as file:
+            reader=csv.DictReader(file,delimiter='\t')
+            for row in reader:
+                key=tuple([row[x] for x in ['chrom','start','end','length','name']])
+                if key not in key_order:
+                    key_order.append(key)
+                target_coverage[key][sample]=float(row['mean_coverage'])
+    with open(out_fp,'w') as outfile:
+        writer=csv.writer(outfile,delimiter=',')
+        writer.writerow(['Chr','Start','End','Length','Name']+SAMPLES)
+        for key in key_order:
+            row=list(key)+[target_coverage[key][sample] for sample in SAMPLES]
+            writer.writerow(row)
+
+
 def get_args():
     p=argparse.ArgumentParser()
+    #target_coverage
+    #qc_metrics
     p.add_argument('-I','--input_fp',default='samples.list',help='Sample list')
     p.add_argument('-O','--output_fp',default='metrics_summary.csv',help='Output metrics.csv')
     p.add_argument('-L','--targets',required=True,help='targets key')
     p.add_argument('-R','--ref',default='GRCh37',help='reference key')
     p.add_argument('--PDX',choices=['True','False'],default='False',help='PDX disambiguation from Mouse')
     return p.parse_args()
+    #target_coverage
 
 def main(argv=None):
     args=get_args()

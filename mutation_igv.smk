@@ -28,18 +28,20 @@ def get_bam(wildcards):
 #TumorID', 'MayoBrca2Br34
 MUTS={}
 SAMPLE_MUT=defaultdict(list)
-with open('SimplexoProgenyMissingInQiaseq7162020.csv','r') as file:
+with open('','r') as file:
     #dict['GENE_pA123B']=1:23345
     reader=csv.DictReader(file,delimiter=',')
     for row in reader:
-        if row['AAChange.refGene']=='.':
-            X=row['NTChange.refGene'].replace('.','')
-            #If not AAChange.refGene use NTChange.refGene
-            #Need to check for special characters
-        else:
-            X=row['AAChange.refGene'].replace('.','')
-        key=f"{row['Gene.refGene']}_{X}"
-        
+        #if row['AAChange.refGene']=='.':
+        #    X=row['NTChange.refGene'].replace('.','')
+        #    #If not AAChange.refGene use NTChange.refGene
+        #    #Need to check for special characters
+        #else:
+        #    X=row['AAChange.refGene'].replace('.','')
+        #key=f"{row['Gene.refGene']}_{X}"
+        #I have no standardized naming convention.
+        key=row['SpliceAI']
+
         MUTS[key]=f"{row['Chr']}:{row['Start']}"
         SAMPLE_MUT[row['SampleID']].append(key)
         os.makedirs(f"analysis/work/{row['SampleID']}/germline_variants/igv_png",exist_ok=True)
@@ -52,15 +54,24 @@ with open('SimplexoProgenyMissingInQiaseq7162020.csv','r') as file:
             bed_file.write(f'{out}\n')
 
 TARGET_FILES=[]
+TARGET_BAMS=[]
 for sample,muts in SAMPLE_MUT.items():
     for mut in muts:
         TARGET_FILES.append(f'analysis/work/{sample}/germline_variants/igv_png/{sample}_{mut}.png')
+        TARGET_BAMS.append(f"analysis/work/{sample}/germline_variants/igv_png/{sample}_{mut}.gatk.bam")
+        TARGET_BAMS.append(f"analysis/work/{sample}/germline_variants/igv_png/{sample}_{mut}.bwa.bam")
+
+
 
 BAMS={}
-with open('bams.table','r') as file:
+with open('bam.table','r') as file:
     for line in file:
         sample,bam=line.rstrip().split('\t')
         BAMS[sample]=bam
+
+rule variant_bams:
+    input:
+        TARGET_BAMS
 
 rule all:
     input:
@@ -70,7 +81,7 @@ rule GATK_bamout:
     input:
         get_bam
     output:
-        bam="analysis/work/{sample}/germline_variants/igv_png/{mut}.gatk.bam",
+        bam="analysis/work/{sample}/germline_variants/igv_png/{sample}_{mut}.gatk.bam",
         vcf="analysis/work/{sample}/germline_variants/igv_png/{mut}.gatk_activeregion.vcf.gz"
     params:
         ref='/home/bwubb/resources/Genomes/Human/GRCh37/human_g1k_v37.fasta',
@@ -83,7 +94,7 @@ rule GATK_bamout:
         -R {params.ref} -I {input} \
         -L {params.intervals} \
         -ip 1000 -bamout {output.bam} -O {output.vcf}
-        
+
         samtools index {output.bam}
         """
 #--assembly-region-out
@@ -106,7 +117,7 @@ rule BWA_bamout:
     input:
         get_bam
     output:
-        bam="analysis/work/{sample}/germline_variants/igv_png/{mut}.bwa.bam"
+        bam="analysis/work/{sample}/germline_variants/igv_png/{sample}_{mut}.bwa.bam"
     params:
         ref='/home/bwubb/resources/Genomes/Human/GRCh37/human_g1k_v37.fasta',
         window=get_window
