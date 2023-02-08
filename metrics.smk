@@ -23,7 +23,7 @@ localrules:summary,target_coverage_summary
 rule standard_summary:
     input:
         expand('{project}.{targets}.{date}.metrics_summary.csv',project=config['project']['name'],targets=config['resources']['targets_key'],date=datetime.today().strftime('%Y%m%d')),
-        expand('{project}.{targets}.{date}.mean_target_coverage.csv',project=config['project']['name'],targets=config['resources']['targets_key'],date=datetime.today().strftime('%Y%m%d'))
+        #expand('{project}.{targets}.{date}.mean_target_coverage.csv',project=config['project']['name'],targets=config['resources']['targets_key'],date=datetime.today().strftime('%Y%m%d'))
 
 ###############################################
 
@@ -47,7 +47,7 @@ rule CollectInsertSizeMetrics:
     params:
         reference=config['reference']['fasta'],
         memory="10240m",
-        MINIMUM_PCT=0.5
+        MINIMUM_PCT=0.05
         #Default value = 0.05. but documentation states "If processing a small file, set the minimum percentage option (M) to 0.5, otherwise an error may occur."
     shell:
         "java -Xmx{params.memory} -jar $HOME/software/picard/2.20.7/picard.jar CollectInsertSizeMetrics R={params.reference} I={input} O={output[0]} H={output[1]} M={params.MINIMUM_PCT} VALIDATION_STRINGENCY=SILENT"
@@ -90,7 +90,9 @@ rule metrics_summary:
     input:
         expand("metrics/{reference}/{sample}/alignment_summary.metrics",sample=SAMPLES,reference=config['reference']['key']),
         expand("metrics/{targets}/{sample}/target.metrics",sample=SAMPLES,targets=config['resources']['targets_key']),
+        expand("metrics/{targets}/{sample}/insert_size.metrics",sample=SAMPLES,targets=config['resources']['targets_key']),
         expand("metrics/{reference}/{sample}/flagstat.metrics",sample=SAMPLES,reference=config['reference']['key'])
+
     output:
         csv='{project}.{date}.metrics_summary.csv'
     params:
@@ -103,6 +105,7 @@ rule metrics_summary:
         python metrics_summary.py -I {params.sample_list} -O {output} -L {params.targets} -R {params.ref} --PDX {params.PDX}
         """
 
+#This should be reduced to subset gene targets?
 rule target_coverage_summary:
     input:
         expand("metrics/{targets}/{sample}/target_coverage.metrics",sample=SAMPLES,targets=config['resources']['targets_key'])

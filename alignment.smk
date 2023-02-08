@@ -6,7 +6,7 @@ import yaml
 def map_input(wildcards):
     inputs=[]
     for RUN,_run in list(FILES[wildcards.sample].items()):
-        run,lane,index=_run['PU'].split('-',2)
+        run,lane,index=_run['PU'].split('-',2)#this causes annoyances when - is used in run id. Not fixed by rsplit.
         inputs.append(f'bam_input/work/{wildcards.sample}/{wildcards.reference}/{run}/{lane}/{index}/5.markdup.bam')
     assert len(inputs)>0
     return sorted(inputs)
@@ -19,9 +19,13 @@ def get_fastqs(wildcards):
 
 with open(config['project']['fastq_config']) as file:
     FILES=yaml.load(file,Loader=yaml.BaseLoader)
-    SAMPLES=sorted(list(FILES.keys()))
+    #SAMPLES=sorted(list(FILES.keys()))
+
+#This allows me to subset the sample list easier.
+with open(config['project']['sample_list']) as file:
+    SAMPLES=file.read().splitlines()
     for sample in SAMPLES:
-        os.makedirs(f'logs/cluster/{sample}',exist_ok=True)
+            os.makedirs(f'logs/cluster/{sample}',exist_ok=True)
 
 ### ### ### RULES ### ### ###
 

@@ -34,6 +34,14 @@ def target_metrics(FileO):
     METRICS=reader.__next__()
     return METRICS
 
+def insert_metrics(FileO):
+    for line in FileO:
+        if line.startswith('MEDIAN_INSERT_SIZE'):
+            break
+    reader=csv.DictReader(FileO,delimiter='\t',fieldnames=line.rstrip().split('\t'))
+    INSERT=reader.__next__()
+    return INSERT
+
 def disambiguate_metrics(FileO):
     #DEPRECIATED
     METRICS={}
@@ -70,7 +78,7 @@ def run_sample(sample,targets,ref='GRCh37',PDX=False):
             OUT_METRICS.update(flagstat_metrics(FILE))
     except FileNotFoundError as e:
         print(f'{e}: {dup_file}')
-    
+
     #Alignment
     try:
         aln_file=os.path.abspath(f'metrics/{ref}/{sample}/alignment_summary.metrics')
@@ -78,7 +86,7 @@ def run_sample(sample,targets,ref='GRCh37',PDX=False):
             OUT_METRICS.update(alignment_metrics(FILE))
     except (FileNotFoundError,StopIteration) as e:
         print(f'{e}: {aln_file}')
-    
+
     #Target metrics
     try:
         target_file=os.path.abspath(f'metrics/{targets}/{sample}/target.metrics')
@@ -87,7 +95,14 @@ def run_sample(sample,targets,ref='GRCh37',PDX=False):
             OUT_METRICS['PCT_TARGET_BASES_lt_20X']=str(1.0-float(OUT_METRICS['PCT_TARGET_BASES_20X']))
     except FileNotFoundError as e:
         print(f'{e}: {target_file}')
-    
+
+    try:
+        insert_file=os.path.abspath(f'metrics/{targets}/{sample}/insert_size.metrics')
+        with open(insert_file,'r') as FILE:
+            OUT_METRICS.update(insert_metrics(FILE))
+    except FileNotFoundError as e:
+        print(f'{e}: {insert_file}')
+
     if PDX:
         #clean this up
         print(os.listdir(f"metrics/{sample}/"))
@@ -134,9 +149,10 @@ def format_outrow(OUT_METRICS):
 
 def write_summary(SAMPLES,output_fp,targets,ref,PDX):
     if PDX==True:
-        header=header='SAMPLE BAIT_SET TOTAL_READS PCT_HUMAN PCT_MOUSE PCT_PF_READS PF_HQ_ALIGNED_READS PCT_READS_ALIGNED_IN_PAIRS PCT_DUP PCT_SELECTED_BASES MEAN_TARGET_COVERAGE MEDIAN_TARGET_COVERAGE MAX_TARGET_COVERAGE PCT_USABLE_BASES_ON_TARGET ZERO_CVG_TARGETS_PCT PCT_TARGET_BASES_20X PCT_TARGET_BASES_100X'.split(' ')
+        header=header='SAMPLE BAIT_SET TOTAL_READS PCT_HUMAN PCT_MOUSE PCT_PF_READS PF_HQ_ALIGNED_READS PCT_READS_ALIGNED_IN_PAIRS PCT_DUP MEDIAN_INSERT_SIZE MODE_INSERT_SIZE MEAN_INSERT_SIZE PCT_SELECTED_BASES MEAN_TARGET_COVERAGE MEDIAN_TARGET_COVERAGE MAX_TARGET_COVERAGE PCT_USABLE_BASES_ON_TARGET ZERO_CVG_TARGETS_PCT PCT_TARGET_BASES_20X PCT_TARGET_BASES_100X'.split(' ')
     else:
-        header='SAMPLE BAIT_SET TOTAL_READS PCT_PF_READS PF_HQ_ALIGNED_READS PCT_READS_ALIGNED_IN_PAIRS PCT_DUP PCT_SELECTED_BASES MEAN_TARGET_COVERAGE MEDIAN_TARGET_COVERAGE MAX_TARGET_COVERAGE PCT_USABLE_BASES_ON_TARGET ZERO_CVG_TARGETS_PCT PCT_TARGET_BASES_20X PCT_TARGET_BASES_100X'.split(' ')
+        #header='SAMPLE BAIT_SET TOTAL_READS PCT_PF_READS PF_HQ_ALIGNED_READS PCT_READS_ALIGNED_IN_PAIRS PCT_DUP PCT_SELECTED_BASES MEAN_TARGET_COVERAGE MEDIAN_TARGET_COVERAGE MAX_TARGET_COVERAGE PCT_USABLE_BASES_ON_TARGET ZERO_CVG_TARGETS_PCT PCT_TARGET_BASES_20X PCT_TARGET_BASES_100X'.split(' ')
+        header='SAMPLE BAIT_SET TOTAL_READS PCT_PF_READS PF_HQ_ALIGNED_READS PCT_READS_ALIGNED_IN_PAIRS PCT_DUP MEDIAN_INSERT_SIZE MODE_INSERT_SIZE MEAN_INSERT_SIZE PCT_SELECTED_BASES MEAN_TARGET_COVERAGE MEDIAN_TARGET_COVERAGE MAX_TARGET_COVERAGE PCT_USABLE_BASES_ON_TARGET ZERO_CVG_TARGETS_PCT PCT_TARGET_BASES_20X PCT_TARGET_BASES_100X MEAN_BAIT_COVERAGE PCT_EXC_DUPE PCT_EXC_MAPQ PCT_EXC_BASEQ PCT_EXC_OVERLAP PCT_EXC_OFF_TARGET'.split(' ')
     with open(output_fp,'w') as OFILE:
         writer=csv.DictWriter(OFILE,delimiter=',',fieldnames=header,restval='.',extrasaction='ignore')
         writer.writeheader()
