@@ -33,7 +33,7 @@ def make_info(r2):
     return sample_data
 
 def write_output(outdict,filename):
-    with open(f'fastq.yaml','w') as outfile:
+    with open(f'fastq.yml','w') as outfile:
         yaml.dump(outdict,outfile,default_flow_style=False)
     with open(f'sample.list','w') as file:
         for i in sorted(outdict.keys()):
@@ -44,20 +44,20 @@ def main(argv=None):
     p.add_argument('--dir',default='FASTQ',help='FASTQ dir')
     p.add_argument('--date',action='store_true',default=False,help='add date to files')
     args=p.parse_args()
-    
+
     all_fastqs=glob.glob(f'{args.dir}/*.fastq.gz')
     print(f"{len(all_fastqs)} found.")
     r2=subset_R2_fastqs(all_fastqs)
     #print(r2)
     sample_data=make_info(r2)
     #print(sample_data)
-    
+
     validate=defaultdict(set)
     for sample_key,sample_vals in sample_data.items():
         for runid_key,runid_vals in sample_vals.items():
             validate[sample_key].add(runid_vals['LB'])
-    
-    with open(f'{datetime.date.today().strftime("%Y%m%d")}.sample.targets.yaml','w') as file:
+
+    with open(f'{datetime.date.today().strftime("%Y%m%d")}.sample.targets.yml','w') as file:
         #Custom YAML write
         #Not sorted
         for sample_key,LB in validate.items():
@@ -66,9 +66,9 @@ def main(argv=None):
                 #Write possible fix, to rename files, and sample names with *-2,*-3,etc
             else:
                 file.write(f'{sample_key}: {"".join(LB)}\n')
-    
+
     write_output(sample_data,f'{datetime.date.today().strftime("%Y%m%d")}')
-    
+
     #Not sure what this was stupposed to be
     #outfile_dict=defaultdict(lambda: defaultdict(dict))
     #for Sample,v in sample_data.items():

@@ -18,21 +18,22 @@ vep -i $INPUT -o $OUTPUT \
 --vcf \
 --everything \
 --canonical \
---assembly GRCh37 \
+--assembly GRCh38 \
 --species homo_sapiens \
---fasta /home/bwubb/resources/Genomes/Human/GRCh37/human_g1k_v37.fasta \
+--fasta /home/bwubb/resources/Genomes/Human/GRCh38/Homo_sapiens.GRCh38.dna.primary_assembly.fa \
 --plugin NMD \
 --plugin ProteinSeqs,"${DIR}/reference.fa","${DIR}/mutated.fa" \
 --plugin Downstream \
 --plugin REVEL,/home/bwubb/.vep/revel/revel_grch38.tsv.gz \
---plugin SpliceAI,snv=/home/bwubb/.vep/spliceai/spliceai_scores.raw.snv.hg19.vcf.gz,indel=/home/bwubb/.vep/spliceai/spliceai_scores.raw.indel.hg19.vcf.gz \
+--plugin SpliceAI,snv=/home/bwubb/.vep/spliceai/spliceai_scores.raw.snv.hg38.vcf.gz,indel=/home/bwubb/.vep/spliceai/spliceai_scores.raw.indel.hg38.vcf.gz \
 --plugin gnomADc,/home/bwubb/.vep/gnomAD/gnomad.v3.1.1.hg38.genomes.gz \
 --custom /home/bwubb/.vep/clinvar/vcf_GRCh38/clinvar.vcf.gz,ClinVar,vcf,exact,0,CLNSIG,CLNREVSTAT,CLNDN
 
-bgzip "${OUTPUT}" && tabix -fp vcf "${OUTOUT}.gz"
+bgzip "${OUTPUT}" #&& tabix -fp vcf "${OUTOUT}.gz"
 
-OUTPUT2=`echo $OUTPUT | sed -e 's/vcf\.gz/report\.csv/'`
+#OUTPUT2=`echo $OUTPUT | sed -e 's/vcf\.gz/report\.csv/'`
 
-echo "OUTPUT: $OUTPUT2"
+#echo "OUTPUT: $OUTPUT2"
 
-python vep_vcf_parser.py -i $OUTPUT -o $OUTPUT2 everything
+
+#python vep_vcf_parser.py -i $OUTPUT -o $OUTPUT2 everything

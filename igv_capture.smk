@@ -3,15 +3,6 @@ import os
 import errno
 from collections import defaultdict
 
-#Read tumor/normals names/bams
-#Read mutation file
-#Make intervals
-#Make bed +500 each side
-#IGV thing to make bat, -nosnap, Can I make my own with better settings???
-#Run xvfb with modified settings
-#???
-#Profit
-
 def mkdir_p(path):
     os.makedirs(path,exist_ok=True)
 
@@ -25,75 +16,93 @@ def get_position(wildcards):
     chr,start=position.split(':')
     return f'{chr}:{int(start)-100}-{int(start)+100}'
 
-#TumorID', 'MayoBrca2Br34
 MUTS={}
-SAMPLE_MUT=defaultdict(list)
-with open('BAGE2.MutSigCV.variants.tsv','r') as file:
+RANGES={}
+with open(config['input'],'r') as file:
     #dict['GENE_pA123B']=1:23345
     reader=csv.DictReader(file,delimiter='\t')
-    for row in reader:
-        SAMPLE_MUT[row['TumorID']].append(f"{row['Chr']}:{row['Start']}")
-        #if row['AAChange.refGene']=='.':
-        #    X=row['NTChange.refGene'].replace('.','')
-            #If not AAChange.refGene use NTChange.refGene
-            #Need to check for special characters
-        #else:
-        #    X=row['AAChange.refGene'].replace('.','')
-        #key=f"{row['Gene.refGene']}_{X}"
+    for n,row in enumerate(reader):
+        k=f'n{n}'
+        if 'Tumor.ID' in row.keys():
+            samples=[row['Tumor.ID'],row['Normal.ID']]
+            os.makedirs(f'analysis/work/{row["Tumor.ID"]}',exist_ok=True)
+            os.makedirs(f'analysis/work/{row["Normal.ID"]}',exist_ok=True)
+        else:
+            samples=[row['Sample.ID']]
+            os.makedirs(f'analysis/work/{row["Sample.ID"]}',exist_ok=True)
+        chr=row['Chr']
+        start=row['Start']
+        gene=row['Gene']
+        if row.get('HGVSp',f'variant{n}')=='.':
+            hgvs='splice'
+        else:
+            hgvs=row.get('HGVSp',f'variant{n}').replace('p.','').replace('?','')
+        MUTS[k]={'name':f'chr{chr}-{start}.{gene}.{hgvs}','range':f'{chr}:{int(start)-100}-{int(start)+100}','samples':samples}
+        for sample in samples:
+            #MUTS[f'analysis/work/{sample}/chr{chr}-{start}.{gene}.{hgvs}.bwa.bam']
+            RANGES[f'analysis/work/{sample}/chr{chr}-{start}.{gene}.{hgvs}.bwa.bam']=f'{chr}:{int(start)-100}-{int(start)+100}'
+
+
 
 TARGET_FILES=[]
-for tumor,muts in SAMPLE_MUT.items():
-    for i,position in enumerate(muts):
-        chr,start=position.split(':')
-        key=f'BAGE2_mut{i+1}'
-        mkdir_p(f"analysis/work/{tumor}/somatic_variants/igv_png")
-        with open(f"analysis/work/{tumor}/somatic_variants/igv_png/{key}.bed",'w') as bed_file:
-            bed_row=[chr]
-            bed_row.append(str(int(start)-100))
-            bed_row.append(str(int(start)+100))
-            bed_row.append(key)
-            out="\t".join(bed_row)
-            bed_file.write(f'{out}\n')
-        MUTS[f'{tumor}_{key}']=f'{chr}:{start}'
-        TARGET_FILES.append(f'analysis/work/{tumor}/somatic_variants/igv_png/{tumor}_{key}.png')
+for k,v in MUTS.items():
+    for sample in v['samples']:
+        TARGET_FILES.append(f'analysis/work/{sample}/{v["name"]}.bwa.bam')
+        TARGET_FILES.append(f'analysis/work/{sample}/{v["name"]}.mutect2.bam')
 
 BAMS={}
-with open('BAGE2.bams.table','r') as file:
+with open('bam.table','r') as file:
     for line in file:
         sample,bam=line.rstrip().split('\t')
         BAMS[sample]=bam
 
-PAIRS={}
-with open('BAGE2.pairs.tsv','r') as file:
-    for line in file:
-        tumor,normal=line.rstrip().split('\t')
-        PAIRS[tumor]=normal
+wildcard_constraints:
+    name='chr\d+-\d+.[a-zA-Z0-9_.]+.[a-zA-Z0-9_.]+'
 
 rule all:
     input:
         TARGET_FILES
 
-rule Mutect2_bamout:
+rule samtools_bamout:
     input:
-        unpack(paired_bams)
+        bam=lambda wildcards: BAMS[wildcards.sample]
     output:
-        bam="analysis/work/{tumor}/somatic_variants/igv_png/{mut}.mutect2.bam",
-        vcf="analysis/work/{tumor}/somatic_variants/igv_png/{mut}.mutect2_activeregion.vcf.gz"
+        "analysis/work/{sample}/{mut}.bwa.bam"
     params:
-        ref='~/resources/Genomes/Human/GRCh37/human_g1k_v37.fasta',
-        tumor=lambda wildcards: wildcards.tumor,
-        normal=lambda wildcards: PAIRS[wildcards.tumor],
-        intervals=lambda wildcards: MUTS[f'{wildcards.tumor}_{wildcards.mut}']
-    log:
-        "analysis/work/{tumor}/somatic_variants/igv_png/{mut}.mutect2.log"
+        range=lambda wildcards: RANGES[f"analysis/work/{wildcards.sample}/{wildcards.mut}.bwa.bam"]
     shell:
         """
-        gatk Mutect2 -R {params.ref} -I {input.tumor} -I {input.normal} \
-        -tumor {params.tumor} -normal {params.normal} -L {params.intervals} \
+        samtools view -O BAM -o {output} {input.bam} {params.range}
+        samtools index {output}
+        """
+
+rule mutect2_bamout:
+    input:
+        bam=lambda wildcards: BAMS[wildcards.sample]
+    output:
+        bam="analysis/work/{sample}/{mut}.mutect2.bam",
+        vcf="analysis/work/{sample}/{mut}.mutect2.vcf"
+    params:
+        ref=config['reference']['fasta'],
+        sample=lambda wildcards: wildcards.sample,
+        range=lambda wildcards: RANGES[f"analysis/work/{wildcards.sample}/{wildcards.mut}.bwa.bam"]
+    log:
+        "analysis/work/{sample}/{mut}.mutect2.log"
+    shell:
+        """
+        gatk Mutect2 -R {params.ref} -I {input.bam} \
+        -tumor {params.sample} -L {params.range} \
         -ip 1000 -bamout {output.bam} -O {output.vcf}
 
         samtools index {output.bam}
         """
+
+#gatk Mutect2 -R {params.ref} -I {input.tumor} -I {input.normal} \
+#-tumor {params.tumor} -normal {params.normal} -L {params.intervals} \
+#-ip 1000 -bamout {output.bam} -O {output.vcf}
+#bam="analysis/work/{tumor}/somatic_variants/igv_png/{mut}.mutect2.bam",
+#vcf="analysis/work/{tumor}/somatic_variants/igv_png/{mut}.mutect2_activeregion.vcf.gz"
+
 
 #rule annotate_activeregion_vcf:
 #    input:

@@ -1,0 +1,18 @@
+---
+project:
+    name: ''
+    fastq_config: 'fastq.yml'
+    bam_table: 'bam.table'
+    sample_list: 'sample.list'
+    tumor_list: 'tumor.list'
+    normal_list: 'normal.list'
+    pair_table: 'pair.table'
+reference:
+    fasta: ''
+    key: 'GRCh38'
+resources:
+    library_key: ''
+    targets_key: ''
+    targets_bed: ''
+    targets_intervals: ''
+    picard_intervals: ''
