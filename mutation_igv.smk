@@ -77,6 +77,8 @@ rule all:
     input:
         TARGET_FILES
 
+#look at --assembly-region-out and --activity-profile-out
+
 rule GATK_bamout:
     input:
         get_bam

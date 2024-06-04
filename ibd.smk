@@ -60,14 +60,26 @@ rule bcftools_vcf_merge:
         -o {output} \
         """
 
-rule run_plink_genome:
+rule bcftools_vcf_norm:
     input:
         "data/work/IBD/merged.haplotype.alleles.1.vcf.gz"
     output:
-        "data/work/IBD/plink.genome"
+        "data/work/IBD/merged.haplotype.alleles.1.norm.vcf.gz"
     shell:
         """
-        plink --vcf {input} --genome --out {output}
+        bcftools norm -m-both {input} | bcftools view -e 'ALT~\"*\"' -O z -o {output}
+        """
+
+rule run_plink_genome:
+    input:
+        "data/work/IBD/merged.haplotype.alleles.1.norm.vcf.gz"
+    output:
+        "data/work/IBD/plink.genome"
+    params:
+        out="data/work/IBD/plink"
+    shell:
+        """
+        plink --vcf {input} --genome --out {params.out}
         """
 
 rule report_ibd:
