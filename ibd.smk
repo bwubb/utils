@@ -1,4 +1,5 @@
 include: "common_snps.smk"
+include: "metrics.smk"
 
 with open(config.get('project',{}).get('sample_list','samples.list'),'r') as i:
     SAMPLES=i.read().splitlines()
@@ -125,4 +126,5 @@ rule report_ibd:
         """
         awk '$10 >= 0.1875 {{print $2, $4, $10}}' {input} > {output}
         """
+##Make a better ibd report, with an R script, maybe even knit to html or something.
 
