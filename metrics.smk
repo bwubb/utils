@@ -67,8 +67,6 @@ rule CollectHsMetrics:
         target=config['resources']['targets_key']
     shell:
         "java -Xmx{params.memory} -jar $HOME/software/picard/2.20.7/picard.jar CollectHsMetrics R={params.reference} I={input} O={output[0]} COVERAGE_CAP=1000 BAIT_INTERVALS={params.baits} TARGET_INTERVALS={params.targets} PER_TARGET_COVERAGE={output[1]} VALIDATION_STRINGENCY=SILENT"
-#Message about new code syntax
-#CollectHsMetrics -R /home/bwubb/resources/Genomes/Human/GRCh37/human_g1k_v37.fasta -I bam_input/work/PP103-DZ2A/GRCh37/recal.bam -O metrics/S31285117/PP103-DZ2A/target.metrics -COVERAGE_CAP 1000 -BAIT_INTERVALS /home/bwubb/resources/Interval_files/SureSelect-Exon_v7.S31285117.Covered.picard.intervals -TARGET_INTERVALS /home/bwubb/resources/Interval_files/SureSelect-Exon_v7.S31285117.Covered.picard.intervals -PER_TARGET_COVERAGE metrics/S31285117/PP103-DZ2A/target_coverage.metrics -VALIDATION_STRINGENCY SILENT
 
 rule samtools_flagstat:
     input:

@@ -1,11 +1,12 @@
-
+include: "common_snps.smk"
 
 with open(config.get('project',{}).get('sample_list','samples.list'),'r') as i:
     SAMPLES=i.read().splitlines()
 
 with open(config.get('project',{}).get('bam_table','bams.table'),'r') as b:
     BAMS=dict(line.split('\t') for line in b.read().splitlines())
-#I need to standardize name the gnomad stuff.
+
+id=config['resources']['targets_key']
 
 rule collect_ibd:
     input:
@@ -13,66 +14,99 @@ rule collect_ibd:
 
 rule gatk_alleles:
     input:
-        bam=lambda wildcards: BAMS[wildcards.sample]
-        #/home/bwubb/resources/Vcf_files/gnomad.exomes.liftover_grch38.S31285117.common_biallelic_snps.simplified.vcf.gz
+        bam=lambda wildcards: BAMS[wildcards.sample],
+        snp=f"data/work/common_snps/{id}/gnomad.exomes.v4.sites.{id}.common_biallelic_snps.simplified.vcf.gz"
     output:
-        "data/work/{lib}/{sample}/gatk/haplotype.alleles.vcf.gz"
+        "data/work/{sample}/gatk/common_snps.g.vcf.gz"
     params:
-        ref=config["reference"]["fasta"],
-        alleles=config["resources"]["common_snps"]
+        ref=config['referemce']['fasta']
     shell:
         """
         gatk --java-options '-Xmx10240m' HaplotypeCaller \
+        -R {params.ref} \
         -I {input.bam} \
         -O {output} \
-        -R {params.ref} \
-        --alleles {params.alleles} \
+        -L {input.snp} \
+        --alleles {input.snp} \
+        --genotype-filtered-alleles true \
+        --emit-ref-confidence GVCF \
+        --output-mode EMIT_ALL_CONFIDENT_SITES \
+        --interval-padding 0
         """
 
-rule make_input_list:
+rule make_sample_map:
     input:
-        expand("data/work/{lib}/{sample}/gatk/haplotype.alleles.vcf.gz",sample=SAMPLES,lib=config["resources"]["targets_key"])
+        expand("data/work/{sample}/gatk/common_snps.g.vcf.gz",sample=SAMPLES)
     output:
-        "data/work/IBD/input.list"
+        "data/work/IBD/sample_map.txt"
     run:
-        with open(f"{output[0]}","w") as file:
-            for i in input:
-                file.write(f"{i}\n")
+        with open(output[0],"w") as f:
+            for sample in SAMPLES:
+                f.write(f"{sample}\tdata/work/{sample}/gatk/common_snps.g.vcf.gz\n")
 
-#trim down to alleles
-#remove *
-#merge
-
-
-rule bcftools_vcf_merge:
+rule genomics_db_import:
     input:
-        "data/work/IBD/input.list"
+        map="data/work/IBD/sample_map.txt",
+        snps=f"data/work/common_snps/{id}/gnomad.exomes.v4.sites.{id}.common_biallelic_snps.simplified.vcf.gz"
     output:
-        "data/work/IBD/merged.haplotype.alleles.1.vcf.gz"
+        directory("data/work/IBD/snp_db")
     params:
-        alleles=config["resources"]["common_snps"]
+        ref=config['referemce']['fasta']
     shell:
         """
-        bcftools merge \
-        -l {input} \
-        -R {params.alleles} \
-        -O z \
-        -o {output} \
+        gatk GenomicsDBImport \
+        --genomicsdb-workspace-path {output} \
+        --sample-name-map {input.map} \
+        -L {input.snps} \
+        --merge-input-intervals false \
+        --interval-padding 0
+        """
+
+rule genotype_gvcfs:
+    input:
+        db="data/work/IBD/snp_db",
+        snps=f"data/work/common_snps/{id}/gnomad.exomes.v4.sites.{id}.common_biallelic_snps.simplified.vcf.gz"
+    output:
+        "data/work/IBD/joint.snp_genotypes.vcf.gz"
+    params:
+        ref=config['referemce']['fasta']
+    shell:
+        """
+        gatk GenotypeGVCFs \
+        -R {params.ref} \
+        -V gendb://{input.db} \
+        -L {input.snps} \
+        --force-output-intervals {input.snps} \
+        --include-non-variant-sites true \
+        --call-genotypes true \
+        -O {output}
         """
 
 rule bcftools_vcf_norm:
     input:
-        "data/work/IBD/merged.haplotype.alleles.1.vcf.gz"
+        "data/work/IBD/joint.snp_genotypes.vcf.gz"
     output:
-        "data/work/IBD/merged.haplotype.alleles.1.norm.vcf.gz"
+        "data/work/IBD/joint.snp_genotypes.norm.vcf.gz"
     shell:
         """
-        bcftools norm -m-both {input} | bcftools view -e 'ALT~\"*\"' -O z -o {output}
+        bcftools norm -m-both -O z -o {output} {input}
+        """
+
+rule bcftools_vcf_clean:
+    input:
+        "data/work/IBD/joint.snp_genotypes.norm.vcf.gz"
+    output:
+        "data/work/IBD/joint.snp_genotypes.clean.vcf.gz"
+    shell:
+        """
+        bcftools view -e 'ALT="*"' {input} |
+        bcftools annotate --set-id '%CHROM\_%POS\_%REF\_%ALT' | \
+        bcftools sort -W=tbi -Oz -o {output}
         """
 
 rule run_plink_genome:
     input:
-        "data/work/IBD/merged.haplotype.alleles.1.norm.vcf.gz"
+        "data/work/IBD/joint.snp_genotypes.clean.vcf.gz"
     output:
         "data/work/IBD/plink.genome"
     params:
@@ -91,3 +125,4 @@ rule report_ibd:
         """
         awk '$10 >= 0.1875 {{print $2, $4, $10}}' {input} > {output}
         """
+
