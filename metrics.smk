@@ -92,7 +92,7 @@ rule metrics_summary:
         target=expand("metrics/{targets}/{sample}/target.metrics",
                      sample=SAMPLES,
                      targets=config['resources']['targets_key']),
-        insert=expand("metrics/{targets}/{sample}/insert_size.metrics",
+        insert_size=expand("metrics/{targets}/{sample}/insert_size.metrics",
                      sample=SAMPLES,
                      targets=config['resources']['targets_key']),
         flagstat=expand("metrics/{reference}/{sample}/flagstat.metrics",

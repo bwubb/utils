@@ -1,0 +1,86 @@
+---
+title: "IBD Analysis Report"
+date: "`r format(Sys.Date(), '%Y-%m-%d')`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    theme: united
+    highlight: tango
+params:
+  genome_file: NULL
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+library(tidyverse)
+library(ggplot2)
+library(heatmaply)
+```
+
+## Load and Clean IBD Data
+
+```{r load}
+genome_data <- read.table(params$genome_file, header=TRUE, stringsAsFactors=FALSE)
+genome_data <- genome_data %>% 
+  filter(!is.na(PI_HAT), is.finite(PI_HAT), PI_HAT >= 0)
+
+# Summary of non-zero PI_HAT values
+pi_hat_summary <- genome_data %>%
+  filter(PI_HAT > 0) %>%
+  summarise(
+    min = min(PI_HAT),
+    max = max(PI_HAT),
+    mean = mean(PI_HAT)
+  )
+```
+
+## PI_HAT Distribution
+
+```{r dist}
+ggplot(genome_data, aes(x=PI_HAT)) +
+  geom_histogram(bins=50, fill="steelblue", alpha=0.7) +
+  theme_minimal() +
+  labs(title="PI_HAT Distribution", x="PI_HAT", y="Count")
+```
+
+## Top 50 Pairs by PI_HAT
+
+```{r top-pairs}
+top_pairs <- genome_data %>% arrange(desc(PI_HAT)) %>% head(50)
+top_pairs
+```
+
+## Heatmap of Top Sample Pairings
+
+```{r heatmap}
+top_samples <- genome_data %>% 
+  arrange(desc(PI_HAT)) %>% 
+  select(IID1, IID2) %>% 
+  slice(1:100) %>% 
+  pivot_longer(cols=c(IID1, IID2), values_to="sample") %>% 
+  pull(sample) %>% 
+  unique()
+
+ibd_subset <- genome_data %>% 
+  filter(IID1 %in% top_samples, IID2 %in% top_samples)
+
+sample_ids <- unique(c(ibd_subset$IID1, ibd_subset$IID2))
+mat <- matrix(NA, nrow=length(sample_ids), ncol=length(sample_ids), dimnames=list(sample_ids, sample_ids))
+
+for (i in seq_len(nrow(ibd_subset))) {
+  a <- ibd_subset$IID1[i]
+  b <- ibd_subset$IID2[i]
+  val <- ibd_subset$PI_HAT[i]
+  mat[a, b] <- val
+  mat[b, a] <- val
+}
+
+heatmaply(
+  mat,
+  colors = c("white", "steelblue"),
+  xlab = "Sample", ylab = "Sample",
+  show_dendrogram = FALSE,
+  main = "Top Sample Pairwise IBD (PI_HAT)"
+)
+```

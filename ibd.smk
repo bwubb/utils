@@ -20,7 +20,7 @@ rule gatk_alleles:
     output:
         "data/work/{sample}/gatk/common_snps.g.vcf.gz"
     params:
-        ref=config['referemce']['fasta']
+        ref=config['reference']['fasta']
     shell:
         """
         gatk --java-options '-Xmx10240m' HaplotypeCaller \
@@ -52,7 +52,7 @@ rule genomics_db_import:
     output:
         directory("data/work/IBD/snp_db")
     params:
-        ref=config['referemce']['fasta']
+        ref=config['reference']['fasta']
     shell:
         """
         gatk GenomicsDBImport \
@@ -70,7 +70,7 @@ rule genotype_gvcfs:
     output:
         "data/work/IBD/joint.snp_genotypes.vcf.gz"
     params:
-        ref=config['referemce']['fasta']
+        ref=config['reference']['fasta']
     shell:
         """
         gatk GenotypeGVCFs \
@@ -121,10 +121,10 @@ rule report_ibd:
     input:
         "data/work/IBD/plink.genome"
     output:
-        "data/work/IBD/ibd-related.txt"
+        "data/work/IBD/ibd-related.txt",
+        "data/work/IBD/ibd_report.html"
     shell:
         """
-        awk '$10 >= 0.1875 {{print $2, $4, $10}}' {input} > {output}
+        awk '$10 >= 0.1875 {{print $2, $4, $10}}' {input} > {output[0]}
+        Rscript -e 'library(rmarkdown); render("ibd_report.Rmd", output_file="{output[1]}", params=list(genome_file="{input}"))'
         """
-##Make a better ibd report, with an R script, maybe even knit to html or something.
-
