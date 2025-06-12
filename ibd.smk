@@ -1,22 +1,28 @@
+import os
+
 include: "common_snps.smk"
 include: "metrics.smk"
 
-with open(config.get('project',{}).get('sample_list','samples.list'),'r') as i:
+os.makedirs("logs/cluster/ibd",exist_ok=True)
+
+with open(config.get('project',{}).get('sample_list','sample.list'),'r') as i:
     SAMPLES=i.read().splitlines()
 
 with open(config.get('project',{}).get('bam_table','bams.table'),'r') as b:
     BAMS=dict(line.split('\t') for line in b.read().splitlines())
 
-id=config['resources']['targets_key']
+name=config['resources']['targets_key']
+ref=config['reference']['key']
 
 rule collect_ibd:
     input:
         "data/work/IBD/ibd-related.txt"
 
+#I made myself a shortcut with gnomad.exomes.v4.1.sites.common_biallelic_snps.GRCh38vcf.gz
 rule gatk_alleles:
     input:
         bam=lambda wildcards: BAMS[wildcards.sample],
-        snp=f"data/work/common_snps/{id}/gnomad.exomes.v4.sites.{id}.common_biallelic_snps.simplified.vcf.gz"
+        snp=f"data/work/common_snps/{name}/gnomad.exomes.common_biallelic_snps.{ref}.vcf.gz"
     output:
         "data/work/{sample}/gatk/common_snps.g.vcf.gz"
     params:
@@ -48,7 +54,7 @@ rule make_sample_map:
 rule genomics_db_import:
     input:
         map="data/work/IBD/sample_map.txt",
-        snps=f"data/work/common_snps/{id}/gnomad.exomes.v4.sites.{id}.common_biallelic_snps.simplified.vcf.gz"
+        snps=f"data/work/common_snps/{name}/gnomad.exomes.common_biallelic_snps.{ref}.vcf.gz"
     output:
         directory("data/work/IBD/snp_db")
     params:
@@ -66,7 +72,7 @@ rule genomics_db_import:
 rule genotype_gvcfs:
     input:
         db="data/work/IBD/snp_db",
-        snps=f"data/work/common_snps/{id}/gnomad.exomes.v4.sites.{id}.common_biallelic_snps.simplified.vcf.gz"
+        snps=f"data/work/common_snps/{name}/gnomad.exomes.common_biallelic_snps.{ref}.vcf.gz"
     output:
         "data/work/IBD/joint.snp_genotypes.vcf.gz"
     params:

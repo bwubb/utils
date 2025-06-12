@@ -1,0 +1,86 @@
+'__default__':
+    'M': '12288'
+    'n': '1'
+    'J': '{wildcards.sample}_{rule}'
+    'oo': 'logs/cluster/aln/{wildcards.sample}/{rule}.o'
+    'eo': 'logs/cluster/aln/{wildcards.sample}/{rule}.e'
+    'R': '"span [hosts=1] rusage [mem=12288]"'
+'bwa_mem':
+    'M': '65536'
+    'n': '4'
+    'eo': 'logs/cluster/aln/{wildcards.sample}/{rule}.{wildcards.run}.{wildcards.lane}.{wildcards.index}.e'
+    'oo': 'logs/cluster/aln/{wildcards.sample}/{rule}.{wildcards.run}.{wildcards.lane}.{wildcards.index}.o'
+    'R': '"span [hosts=1] rusage [mem=65536]"'
+'samtools_readgroup':
+    'M': '65536'
+    'n': '4'
+    'eo': 'logs/cluster/aln/{wildcards.sample}/{rule}.{wildcards.run}.{wildcards.lane}.{wildcards.index}.e'
+    'oo': 'logs/cluster/aln/{wildcards.sample}/{rule}.{wildcards.run}.{wildcards.lane}.{wildcards.index}.o'
+    'R': '"span [hosts=1] rusage [mem=65536]"'
+'samtools_markdup':
+    'M': '65536'
+    'n': '4'
+    'eo': 'logs/cluster/aln/{wildcards.sample}/{rule}.{wildcards.run}.{wildcards.lane}.{wildcards.index}.e'
+    'oo': 'logs/cluster/aln/{wildcards.sample}/{rule}.{wildcards.run}.{wildcards.lane}.{wildcards.index}.o'
+    'R': '"span [hosts=1] rusage [mem=65536]"'
+'input_ready':
+    'M': '65536'
+    'n': '4'
+    'R': '"span [hosts=1] rusage [mem=65536]"'
+
+# Metrics rules
+'gatk_CollectAlignmentSummaryMetrics':
+    'M': '10240'
+    'n': '1'
+    'J': '{wildcards.sample}_{rule}'
+    'oo': 'logs/cluster/metrics/{wildcards.sample}/{rule}.o'
+    'eo': 'logs/cluster/metrics/{wildcards.sample}/{rule}.e'
+    'R': '"span [hosts=1] rusage [mem=10240]"'
+
+'gatk_CollectInsertSizeMetrics':
+    'M': '10240'
+    'n': '1'
+    'J': '{wildcards.sample}_{rule}'
+    'oo': 'logs/cluster/metrics/{wildcards.sample}/{rule}.o'
+    'eo': 'logs/cluster/metrics/{wildcards.sample}/{rule}.e'
+    'R': '"span [hosts=1] rusage [mem=10240]"'
+
+'gatk_CollectHsMetrics':
+    'M': '10240'
+    'n': '1'
+    'J': '{wildcards.sample}_{rule}'
+    'oo': 'logs/cluster/metrics/{wildcards.sample}/{rule}.o'
+    'eo': 'logs/cluster/metrics/{wildcards.sample}/{rule}.e'
+    'R': '"span [hosts=1] rusage [mem=10240]"'
+
+'samtools_flagstat':
+    'M': '8192'
+    'n': '1'
+    'J': '{wildcards.sample}_{rule}'
+    'oo': 'logs/cluster/metrics/{wildcards.sample}/{rule}.o'
+    'eo': 'logs/cluster/metrics/{wildcards.sample}/{rule}.e'
+    'R': '"span [hosts=1] rusage [mem=8192]"'
+
+'samtools_readlength':
+    'M': '8192'
+    'n': '1'
+    'J': '{wildcards.sample}_{rule}'
+    'oo': 'logs/cluster/metrics/{wildcards.sample}/{rule}.o'
+    'eo': 'logs/cluster/metrics/{wildcards.sample}/{rule}.e'
+    'R': '"span [hosts=1] rusage [mem=8192]"'
+
+'metrics_summary':
+    'M': '8192'
+    'n': '1'
+    'J': 'metrics_{rule}'
+    'oo': 'logs/cluster/metrics/{rule}.o'
+    'eo': 'logs/cluster/metrics/{rule}.e'
+    'R': '"span [hosts=1] rusage [mem=8192]"'
+
+'target_coverage_summary':
+    'M': '8192'
+    'n': '1'
+    'J': 'metrics_{rule}'
+    'oo': 'logs/cluster/metrics/{rule}.o'
+    'eo': 'logs/cluster/metrics/{rule}.e'
+    'R': '"span [hosts=1] rusage [mem=8192]"'

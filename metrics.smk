@@ -30,7 +30,7 @@ rule standard_summary:
                targets=config['resources']['targets_key'],
                date=datetime.today().strftime('%Y%m%d'))
 
-rule CollectAlignmentSummaryMetrics:
+rule gatk_CollectAlignmentSummaryMetrics:
     input:
         sample_bam
     output:
@@ -41,7 +41,7 @@ rule CollectAlignmentSummaryMetrics:
     shell:
         "gatk --java-options -Xmx{params.memory} CollectAlignmentSummaryMetrics -R {params.reference} -I {input} -O {output} --VALIDATION_STRINGENCY SILENT"
 
-rule CollectInsertSizeMetrics:
+rule gatk_CollectInsertSizeMetrics:
     input:
         sample_bam
     output:
@@ -54,7 +54,7 @@ rule CollectInsertSizeMetrics:
     shell:
         "gatk --java-options -Xmx{params.memory} CollectInsertSizeMetrics -R {params.reference} -I {input} -O {output[0]} -H {output[1]} -M {params.MINIMUM_PCT} --VALIDATION_STRINGENCY SILENT"
 
-rule CollectHsMetrics:
+rule gatk_CollectHsMetrics:
     input:
         sample_bam
     output:
