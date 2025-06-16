@@ -1,86 +1,86 @@
 '__default__':
-    'M': '12288'
+    'M': '6291456'  # 6 GB (6291456/1024/1024)
     'n': '1'
     'J': '{wildcards.sample}_{rule}'
     'oo': 'logs/cluster/aln/{wildcards.sample}/{rule}.o'
     'eo': 'logs/cluster/aln/{wildcards.sample}/{rule}.e'
-    'R': '"span [hosts=1] rusage [mem=12288]"'
+    'R': '"span[hosts=1] rusage[mem=6144]"'
 'bwa_mem':
-    'M': '65536'
+    'M': '33554432'  # 32 GB (33554432/1024/1024)
     'n': '4'
     'eo': 'logs/cluster/aln/{wildcards.sample}/{rule}.{wildcards.run}.{wildcards.lane}.{wildcards.index}.e'
     'oo': 'logs/cluster/aln/{wildcards.sample}/{rule}.{wildcards.run}.{wildcards.lane}.{wildcards.index}.o'
-    'R': '"span [hosts=1] rusage [mem=65536]"'
+    'R': '"span[hosts=1] rusage[mem=32768]"'
 'samtools_readgroup':
-    'M': '65536'
+    'M': '33554432'  # 32 GB (33554432/1024/1024)
     'n': '4'
     'eo': 'logs/cluster/aln/{wildcards.sample}/{rule}.{wildcards.run}.{wildcards.lane}.{wildcards.index}.e'
     'oo': 'logs/cluster/aln/{wildcards.sample}/{rule}.{wildcards.run}.{wildcards.lane}.{wildcards.index}.o'
-    'R': '"span [hosts=1] rusage [mem=65536]"'
+    'R': '"span[hosts=1] rusage[mem=32768]"'
 'samtools_markdup':
-    'M': '65536'
+    'M': '33554432'  # 32 GB (33554432/1024/1024)
     'n': '4'
     'eo': 'logs/cluster/aln/{wildcards.sample}/{rule}.{wildcards.run}.{wildcards.lane}.{wildcards.index}.e'
     'oo': 'logs/cluster/aln/{wildcards.sample}/{rule}.{wildcards.run}.{wildcards.lane}.{wildcards.index}.o'
-    'R': '"span [hosts=1] rusage [mem=65536]"'
+    'R': '"span[hosts=1] rusage[mem=32768]"'
 'input_ready':
-    'M': '65536'
+    'M': '33554432'  # 32 GB (33554432/1024/1024)
     'n': '4'
-    'R': '"span [hosts=1] rusage [mem=65536]"'
+    'R': '"span[hosts=1] rusage[mem=32768]"'
 
 # Metrics rules
 'gatk_CollectAlignmentSummaryMetrics':
-    'M': '10240'
+    'M': '5242880'  # 5 GB (5242880/1024/1024)
     'n': '1'
     'J': '{wildcards.sample}_{rule}'
     'oo': 'logs/cluster/metrics/{wildcards.sample}/{rule}.o'
     'eo': 'logs/cluster/metrics/{wildcards.sample}/{rule}.e'
-    'R': '"span [hosts=1] rusage [mem=10240]"'
+    'R': '"span[hosts=1] rusage[mem=5120]"'
 
 'gatk_CollectInsertSizeMetrics':
-    'M': '10240'
+    'M': '5242880'  # 5 GB (5242880/1024/1024)
     'n': '1'
     'J': '{wildcards.sample}_{rule}'
     'oo': 'logs/cluster/metrics/{wildcards.sample}/{rule}.o'
     'eo': 'logs/cluster/metrics/{wildcards.sample}/{rule}.e'
-    'R': '"span [hosts=1] rusage [mem=10240]"'
+    'R': '"span[hosts=1] rusage[mem=5120]"'
 
 'gatk_CollectHsMetrics':
-    'M': '10240'
+    'M': '5242880'  # 5 GB (5242880/1024/1024)
     'n': '1'
     'J': '{wildcards.sample}_{rule}'
     'oo': 'logs/cluster/metrics/{wildcards.sample}/{rule}.o'
     'eo': 'logs/cluster/metrics/{wildcards.sample}/{rule}.e'
-    'R': '"span [hosts=1] rusage [mem=10240]"'
+    'R': '"span[hosts=1] rusage[mem=5120]"'
 
 'samtools_flagstat':
-    'M': '8192'
+    'M': '4194304'  # 4 GB (4194304/1024/1024)
     'n': '1'
     'J': '{wildcards.sample}_{rule}'
     'oo': 'logs/cluster/metrics/{wildcards.sample}/{rule}.o'
     'eo': 'logs/cluster/metrics/{wildcards.sample}/{rule}.e'
-    'R': '"span [hosts=1] rusage [mem=8192]"'
+    'R': '"span[hosts=1] rusage[mem=4096]"'
 
 'samtools_readlength':
-    'M': '8192'
+    'M': '4194304'  # 4 GB (4194304/1024/1024)
     'n': '1'
     'J': '{wildcards.sample}_{rule}'
     'oo': 'logs/cluster/metrics/{wildcards.sample}/{rule}.o'
     'eo': 'logs/cluster/metrics/{wildcards.sample}/{rule}.e'
-    'R': '"span [hosts=1] rusage [mem=8192]"'
+    'R': '"span[hosts=1] rusage[mem=4096]"'
 
 'metrics_summary':
-    'M': '8192'
+    'M': '4194304'  # 4 GB (4194304/1024/1024)
     'n': '1'
     'J': 'metrics_{rule}'
     'oo': 'logs/cluster/metrics/{rule}.o'
     'eo': 'logs/cluster/metrics/{rule}.e'
-    'R': '"span [hosts=1] rusage [mem=8192]"'
+    'R': '"span[hosts=1] rusage[mem=4096]"'
 
 'target_coverage_summary':
-    'M': '8192'
+    'M': '4194304'  # 4 GB (4194304/1024/1024)
     'n': '1'
     'J': 'metrics_{rule}'
     'oo': 'logs/cluster/metrics/{rule}.o'
     'eo': 'logs/cluster/metrics/{rule}.e'
-    'R': '"span [hosts=1] rusage [mem=8192]"'
+    'R': '"span[hosts=1] rusage[mem=4096]"'

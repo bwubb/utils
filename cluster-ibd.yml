@@ -1,104 +1,104 @@
 '__default__':
-    'M': '12288'
+    'M': '6291456'  #6GB (6291456/1024/1024)
     'n': '1'
     'J': '{wildcards.sample}_{rule}'
     'oo': 'logs/cluster/{wildcards.sample}/{rule}.o'
     'eo': 'logs/cluster/{wildcards.sample}/{rule}.e'
-    'R': '"span [hosts=1] rusage [mem=12288]"'
+    'R': '"span[hosts=1] rusage[mem=6144]"'
 
 'gatk_alleles':
-    'M': '10240'
+    'M': '5242880'  #5GB (5242880/1024/1024)
     'n': '1'
     'J': '{wildcards.sample}_{rule}'
     'oo': 'logs/cluster/{wildcards.sample}/{rule}.o'
     'eo': 'logs/cluster/{wildcards.sample}/{rule}.e'
-    'R': '"span [hosts=1] rusage [mem=10240]"'
+    'R': '"span[hosts=1] rusage[mem=5120]"'
 
 'genomics_db_import':
-    'M': '32768'
+    'M': '67108864'  #64GB (67108864/1024/1024)
     'n': '1'
     'J': 'ibd_{rule}'
     'oo': 'logs/cluster/ibd/{rule}.o'
     'eo': 'logs/cluster/ibd/{rule}.e'
-    'R': '"span [hosts=1] rusage [mem=32768]"'
+    'R': '"span[hosts=1] rusage[mem=65536]"'
 
 'genotype_gvcfs':
-    'M': '32768'
+    'M': '16777216'  #16GB (16777216/1024/1024)
     'n': '1'
     'J': 'ibd_{rule}'
     'oo': 'logs/cluster/ibd/{rule}.o'
     'eo': 'logs/cluster/ibd/{rule}.e'
-    'R': '"span [hosts=1] rusage [mem=32768]"'
+    'R': '"span[hosts=1] rusage[mem=16384]"'
 
 'bcftools_vcf_norm':
-    'M': '16384'
+    'M': '8388608'  #8GB (8388608/1024/1024)
     'n': '1'
     'J': 'ibd_{rule}'
     'oo': 'logs/cluster/ibd/{rule}.o'
     'eo': 'logs/cluster/ibd/{rule}.e'
-    'R': '"span [hosts=1] rusage [mem=16384]"'
+    'R': '"span[hosts=1] rusage[mem=8192]"'
 
 'bcftools_vcf_clean':
-    'M': '16384'
+    'M': '8388608'  #8GB (8388608/1024/1024)
     'n': '1'
     'J': 'ibd_{rule}'
     'oo': 'logs/cluster/ibd/{rule}.o'
     'eo': 'logs/cluster/ibd/{rule}.e'
-    'R': '"span [hosts=1] rusage [mem=16384]"'
+    'R': '"span[hosts=1] rusage[mem=8192]"'
 
 'run_plink_genome':
-    'M': '32768'
+    'M': '16777216'  #16GB (16777216/1024/1024)
     'n': '1'
     'J': 'ibd_{rule}'
     'oo': 'logs/cluster/ibd/{rule}.o'
     'eo': 'logs/cluster/ibd/{rule}.e'
-    'R': '"span [hosts=1] rusage [mem=32768]"'
+    'R': '"span[hosts=1] rusage[mem=16384]"'
 
 'report_ibd':
-    'M': '8192'
+    'M': '4194304'  #4GB (4194304/1024/1024)
     'n': '1'
     'J': 'ibd_{rule}'
     'oo': 'logs/cluster/ibd/{rule}.o'
     'eo': 'logs/cluster/ibd/{rule}.e'
-    'R': '"span [hosts=1] rusage [mem=8192]"'
+    'R': '"span[hosts=1] rusage[mem=4096]"'
 
 # Common SNPs rules
 'select_from_prefiltered':
-    'M': '10240'
+    'M': '5242880'  #5GB (5242880/1024/1024)
     'n': '1'
     'J': 'common_snps_{rule}'
     'oo': 'logs/cluster/common_snps/{rule}.o'
     'eo': 'logs/cluster/common_snps/{rule}.e'
-    'R': '"span [hosts=1] rusage [mem=10240]"'
+    'R': '"span[hosts=1] rusage[mem=5120]"'
 
 'select_variants':
-    'M': '10240'
+    'M': '5242880'  #5GB (5242880/1024/1024)
     'n': '1'
     'J': 'common_snps_{rule}'
     'oo': 'logs/cluster/common_snps/{rule}.o'
     'eo': 'logs/cluster/common_snps/{rule}.e'
-    'R': '"span [hosts=1] rusage [mem=10240]"'
+    'R': '"span[hosts=1] rusage[mem=5120]"'
 
 'simplify_vcf':
-    'M': '8192'
+    'M': '4194304'  #4GB (4194304/1024/1024)
     'n': '1'
     'J': 'common_snps_{rule}'
     'oo': 'logs/cluster/common_snps/{rule}.o'
     'eo': 'logs/cluster/common_snps/{rule}.e'
-    'R': '"span [hosts=1] rusage [mem=8192]"'
+    'R': '"span[hosts=1] rusage[mem=4096]"'
 
 'index_simplified':
-    'M': '8192'
+    'M': '4194304'  #4GB (4194304/1024/1024)
     'n': '1'
     'J': 'common_snps_{rule}'
     'oo': 'logs/cluster/common_snps/{rule}.o'
     'eo': 'logs/cluster/common_snps/{rule}.e'
-    'R': '"span [hosts=1] rusage [mem=8192]"'
+    'R': '"span[hosts=1] rusage[mem=4096]"'
 
 'filter_common_snps':
-    'M': '10240'
+    'M': '5242880'  #5GB (5242880/1024/1024)
     'n': '1'
     'J': 'common_snps_{rule}'
     'oo': 'logs/cluster/common_snps/{rule}.o'
     'eo': 'logs/cluster/common_snps/{rule}.e'
-    'R': '"span [hosts=1] rusage [mem=10240]"'
+    'R': '"span[hosts=1] rusage[mem=5120]"'

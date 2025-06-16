@@ -14,6 +14,8 @@ with open(config.get('project',{}).get('bam_table','bams.table'),'r') as b:
 name=config['resources']['targets_key']
 ref=config['reference']['key']
 
+localrules: make_sample_map
+
 rule collect_ibd:
     input:
         "data/work/IBD/ibd-related.txt"
@@ -29,7 +31,7 @@ rule gatk_alleles:
         ref=config['reference']['fasta']
     shell:
         """
-        gatk --java-options '-Xmx10240m' HaplotypeCaller \
+        gatk --java-options '-Xmx5g' HaplotypeCaller \
         -R {params.ref} \
         -I {input.bam} \
         -O {output} \
@@ -61,7 +63,7 @@ rule genomics_db_import:
         ref=config['reference']['fasta']
     shell:
         """
-        gatk GenomicsDBImport \
+        gatk --java-options '-Xmx64g' GenomicsDBImport \
         --genomicsdb-workspace-path {output} \
         --sample-name-map {input.map} \
         -L {input.snps} \
@@ -79,7 +81,7 @@ rule genotype_gvcfs:
         ref=config['reference']['fasta']
     shell:
         """
-        gatk GenotypeGVCFs \
+        gatk --java-options '-Xmx16g' GenotypeGVCFs \
         -R {params.ref} \
         -V gendb://{input.db} \
         -L {input.snps} \

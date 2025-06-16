@@ -1,20 +1,19 @@
 import csv
 import os
-import errno
 from collections import defaultdict
 
 def mkdir_p(path):
     os.makedirs(path,exist_ok=True)
 
-def paired_bams(wildcards):
-    tumor=wildcards.tumor
-    normal=PAIRS[wildcards.tumor]
-    return {'tumor':BAMS[wildcards.tumor],'normal':BAMS[normal]}
-
 def get_position(wildcards):
     position=MUTS[f'{wildcards.tumor}_{wildcards.mut}']
     chr,start=position.split(':')
     return f'{chr}:{int(start)-100}-{int(start)+100}'
+
+def paired_bams(wildcards):
+    tumor=wildcards.tumor
+    normal=PAIRS[wildcards.tumor]
+    return {'tumor':BAMS[wildcards.tumor],'normal':BAMS[normal]}
 
 MUTS={}
 RANGES={}
@@ -25,11 +24,11 @@ with open(config['input'],'r') as file:
         k=f'n{n}'
         if 'Tumor.ID' in row.keys():
             samples=[row['Tumor.ID'],row['Normal.ID']]
-            os.makedirs(f'analysis/work/{row["Tumor.ID"]}',exist_ok=True)
-            os.makedirs(f'analysis/work/{row["Normal.ID"]}',exist_ok=True)
+            os.makedirs(f'analysis/work/{row["Tumor.ID"]}/somatic_variants/igv_png',exist_ok=True)
+            os.makedirs(f'analysis/work/{row["Normal.ID"]}/somatic_variants/igv_png',exist_ok=True)
         else:
             samples=[row['Sample.ID']]
-            os.makedirs(f'analysis/work/{row["Sample.ID"]}',exist_ok=True)
+            os.makedirs(f'analysis/work/{row["Sample.ID"]}/somatic_variants/igv_png',exist_ok=True)
         chr=row['Chr']
         start=row['Start']
         gene=row['Gene']
@@ -42,8 +41,6 @@ with open(config['input'],'r') as file:
             #MUTS[f'analysis/work/{sample}/chr{chr}-{start}.{gene}.{hgvs}.bwa.bam']
             RANGES[f'analysis/work/{sample}/chr{chr}-{start}.{gene}.{hgvs}.bwa.bam']=f'{chr}:{int(start)-100}-{int(start)+100}'
 
-
-
 TARGET_FILES=[]
 for k,v in MUTS.items():
     for sample in v['samples']:
@@ -55,6 +52,12 @@ with open('bam.table','r') as file:
     for line in file:
         sample,bam=line.rstrip().split('\t')
         BAMS[sample]=bam
+
+PAIRS={}
+with open('pair.table','r') as file:
+    for line in file:
+        tumor,normal=line.rstrip().split('\t')
+        PAIRS[tumor]=normal
 
 wildcard_constraints:
     name='chr\d+-\d+.[a-zA-Z0-9_.]+.[a-zA-Z0-9_.]+'
@@ -78,20 +81,23 @@ rule samtools_bamout:
 
 rule mutect2_bamout:
     input:
-        bam=lambda wildcards: BAMS[wildcards.sample]
+        unpack(paired_bams)
     output:
-        bam="analysis/work/{sample}/{mut}.mutect2.bam",
-        vcf="analysis/work/{sample}/{mut}.mutect2.vcf"
+        bam="analysis/work/{tumor}/{mut}.mutect2.bam",
+        vcf="analysis/work/{tumor}/{mut}.mutect2.vcf"
     params:
         ref=config['reference']['fasta'],
-        sample=lambda wildcards: wildcards.sample,
-        range=lambda wildcards: RANGES[f"analysis/work/{wildcards.sample}/{wildcards.mut}.bwa.bam"]
+        tumor=lambda wildcards: wildcards.tumor,
+        normal=lambda wildcards: PAIRS[wildcards.tumor],
+        range=lambda wildcards: RANGES[f"analysis/work/{wildcards.tumor}/{wildcards.mut}.bwa.bam"]
     log:
-        "analysis/work/{sample}/{mut}.mutect2.log"
+        "analysis/work/{tumor}/{mut}.mutect2.log"
     shell:
         """
-        gatk Mutect2 -R {params.ref} -I {input.bam} \
-        -tumor {params.sample} -L {params.range} \
+        gatk Mutect2 -R {params.ref} \
+        -I {input.tumor} -I {input.normal} \
+        -tumor {params.tumor} -normal {params.normal} \
+        -L {params.range} \
         -ip 1000 -bamout {output.bam} -O {output.vcf}
 
         samtools index {output.bam}
@@ -126,7 +132,7 @@ rule write_bat:
     run:
         with open(output['bat'],'w') as file:
             file.write(f"new\n")
-            file.write(f"genome b37\n")
+            file.write(f"genome {config['reference']['key']}\n")
             file.write(f"snapshotDirectory {params['dir']}\n")
             file.write(f"load {input['bam']}\n")
             file.write(f"maxPanelHeight 2000\n")
@@ -139,6 +145,6 @@ rule run_bat:
     input:
         bat="analysis/work/{tumor}/somatic_variants/igv_png/{mut}.bat"
     output:
-        bat="analysis/work/{tumor}/somatic_variants/igv_png/{tumor}_{mut}.png"
+        png="analysis/work/{tumor}/somatic_variants/igv_png/{tumor}_{mut}.png"
     shell:
-        "xvfb-run --auto-servernum --server-num=1 --server-args='-screen 0, 1900x1200x24' java -Xmx10240m -jar /usr/local/software/IGV_2.4.4/igv.jar -b {input}"
+        "xvfb-run --auto-servernum --server-num=1 --server-args='-screen 0, 1900x1200x24' java -Xmx4g -jar /usr/local/software/IGV_2.4.4/igv.jar -b {input}"
