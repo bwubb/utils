@@ -57,7 +57,9 @@ class IntervalManager:
                 if len(fields)<3:
                     continue
                 chrom=self._handle_chr_prefix(fields[0],add_chr_prefix)
-                out.write(f'{chrom}\t{fields[1]}\t{fields[2]}\n')
+                # Preserve all columns from input
+                fields[0]=chrom
+                out.write('\t'.join(fields)+'\n')
     
     def intervals_to_intervals(self,intervals_file,output_file,add_chr_prefix=False):
         """Convert intervals to intervals format with chr prefix handling"""
