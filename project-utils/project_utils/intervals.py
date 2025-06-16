@@ -46,6 +46,30 @@ class IntervalManager:
                 start,end=map(int,pos.split('-'))
                 out.write(f'{chrom}\t{start-1}\t{end}\n')  # Convert to 0-based
     
+    def bed_to_bed(self,bed_file,output_file,add_chr_prefix=False):
+        """Convert BED to BED format with chr prefix handling"""
+        with open(bed_file,'r') as bed,open(output_file,'w') as out:
+            for line in bed:
+                if line.startswith('#'):
+                    out.write(line)
+                    continue
+                fields=line.strip().split('\t')
+                if len(fields)<3:
+                    continue
+                chrom=self._handle_chr_prefix(fields[0],add_chr_prefix)
+                out.write(f'{chrom}\t{fields[1]}\t{fields[2]}\n')
+    
+    def intervals_to_intervals(self,intervals_file,output_file,add_chr_prefix=False):
+        """Convert intervals to intervals format with chr prefix handling"""
+        with open(intervals_file,'r') as intervals,open(output_file,'w') as out:
+            for line in intervals:
+                if line.startswith('#'):
+                    out.write(line)
+                    continue
+                chrom,pos=line.strip().split(':')
+                chrom=self._handle_chr_prefix(chrom,add_chr_prefix)
+                out.write(f'{chrom}:{pos}\n')
+    
     def make_picard_intervals(self,bed_file,output_file,reference,add_chr_prefix=False):
         """Create Picard-style intervals file"""
         # Get the reference dictionary file
@@ -87,9 +111,29 @@ class IntervalManager:
         """Main entry point for interval processing"""
         add_chr_prefix=args.reference=='hg38'
         
+        # Check if input is BED or intervals format
+        is_bed=True
+        with open(args.input,'r') as f:
+            first_line=f.readline().strip()
+            if ':' in first_line and '-' in first_line:
+                is_bed=False
+        
         if args.format=='bed':
-            self.intervals_to_bed(args.input,args.output,add_chr_prefix)
+            if is_bed:
+                self.bed_to_bed(args.input,args.output,add_chr_prefix)
+            else:
+                self.intervals_to_bed(args.input,args.output,add_chr_prefix)
         elif args.format=='intervals':
-            self.bed_to_intervals(args.input,args.output,add_chr_prefix)
+            if is_bed:
+                self.bed_to_intervals(args.input,args.output,add_chr_prefix)
+            else:
+                self.intervals_to_intervals(args.input,args.output,add_chr_prefix)
         elif args.format=='picard':
-            self.make_picard_intervals(args.input,args.output,args.reference,add_chr_prefix) 
+            if not is_bed:
+                # First convert intervals to BED
+                temp_bed=args.output+'.temp.bed'
+                self.intervals_to_bed(args.input,temp_bed,add_chr_prefix)
+                self.make_picard_intervals(temp_bed,args.output,args.reference,add_chr_prefix)
+                os.remove(temp_bed)
+            else:
+                self.make_picard_intervals(args.input,args.output,args.reference,add_chr_prefix) 
