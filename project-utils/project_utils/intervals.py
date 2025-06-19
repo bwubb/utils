@@ -26,10 +26,16 @@ class IntervalManager:
         with open(dict_file,'r') as f:
             for line in f:
                 if line.startswith('@SQ'):
-                    fields=dict(f.split(':') for f in line.strip().split('\t')[1:])
-                    chrom=fields['SN']
-                    length=int(fields['LN'])
-                    chrom_lengths[chrom]=length
+                    parts=line.strip().split('\t')
+                    chrom=None
+                    length=None
+                    for part in parts[1:]:
+                        if part.startswith('SN:'):
+                            chrom=part[3:]
+                        elif part.startswith('LN:'):
+                            length=int(part[3:])
+                    if chrom and length:
+                        chrom_lengths[chrom]=length
         return chrom_lengths
     
     def validate_bed(self,args):
