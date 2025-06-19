@@ -20,6 +20,138 @@ class IntervalManager:
             return rest
         return chrom
     
+    def _load_chromosome_lengths(self,dict_file):
+        """Load chromosome lengths from reference dictionary file"""
+        chrom_lengths={}
+        with open(dict_file,'r') as f:
+            for line in f:
+                if line.startswith('@SQ'):
+                    fields=dict(f.split(':') for f in line.strip().split('\t')[1:])
+                    chrom=fields['SN']
+                    length=int(fields['LN'])
+                    chrom_lengths[chrom]=length
+        return chrom_lengths
+    
+    def validate_bed(self,args):
+        """Validate BED file coordinates against reference dictionary"""
+        chrom_lengths=self._load_chromosome_lengths(args.dict)
+        
+        with open(args.input,'r') as bed,open(args.output,'w') as out:
+            for line_num,line in enumerate(bed,1):
+                if line.startswith('#'):
+                    out.write(line)
+                    continue
+                
+                fields=line.strip().split('\t')
+                if len(fields)<3:
+                    continue
+                
+                chrom=fields[0]
+                start=int(fields[1])
+                end=int(fields[2])
+                
+                # Check if chromosome exists in dict
+                if chrom not in chrom_lengths:
+                    print(f"Warning: Chromosome {chrom} not found in dict file, skipping line {line_num}")
+                    continue
+                
+                # Check if coordinates are within bounds
+                if start<0 or end>chrom_lengths[chrom] or start>=end:
+                    print(f"Warning: Invalid coordinates on {chrom}:{start}-{end} (length: {chrom_lengths[chrom]}), skipping line {line_num}")
+                    continue
+                
+                out.write(line)
+    
+    def create_picard_intervals(self,args):
+        """Create Picard intervals from bait and target files"""
+        chrom_lengths=self._load_chromosome_lengths(args.dict)
+        
+        # Get output filenames
+        bait_basename=os.path.splitext(args.bait)[0]
+        target_basename=os.path.splitext(args.target)[0]
+        bait_output=f"{bait_basename}.picard_bait.intervals"
+        target_output=f"{target_basename}.picard_target.intervals"
+        
+        # Validate chromosomes in bait file
+        bait_chroms=set()
+        with open(args.bait,'r') as f:
+            for line in f:
+                if line.startswith('#'):
+                    continue
+                fields=line.strip().split('\t')
+                if len(fields)>=3:
+                    bait_chroms.add(fields[0])
+        
+        # Validate chromosomes in target file
+        target_chroms=set()
+        with open(args.target,'r') as f:
+            for line in f:
+                if line.startswith('#'):
+                    continue
+                fields=line.strip().split('\t')
+                if len(fields)>=3:
+                    target_chroms.add(fields[0])
+        
+        # Check for missing chromosomes in dict
+        dict_chroms=set(chrom_lengths.keys())
+        missing_bait=bait_chroms-dict_chroms
+        missing_target=target_chroms-dict_chroms
+        
+        if missing_bait:
+            print(f"Warning: Bait chromosomes not in dict: {missing_bait}")
+        if missing_target:
+            print(f"Warning: Target chromosomes not in dict: {missing_target}")
+        
+        # Process bait file
+        with open(bait_output,'w') as out:
+            with open(args.bait,'r') as bait:
+                for line in bait:
+                    if line.startswith('#'):
+                        continue
+                    fields=line.strip().split('\t')
+                    if len(fields)<3:
+                        continue
+                    
+                    chrom=fields[0]
+                    start=int(fields[1])
+                    end=int(fields[2])
+                    
+                    # Validate coordinates
+                    if chrom not in chrom_lengths or start<0 or end>chrom_lengths[chrom] or start>=end:
+                        continue
+                    
+                    # Use strand from field 5 if available, otherwise '+'
+                    strand=fields[5] if len(fields)>5 else '+'
+                    # Use name from field 3 if available, otherwise generate one
+                    name=fields[3] if len(fields)>3 else f"{chrom}_{start}_{end}"
+                    
+                    out.write(f"{chrom}\t{start}\t{end}\t{strand}\t{name}\n")
+        
+        # Process target file
+        with open(target_output,'w') as out:
+            with open(args.target,'r') as target:
+                for line in target:
+                    if line.startswith('#'):
+                        continue
+                    fields=line.strip().split('\t')
+                    if len(fields)<3:
+                        continue
+                    
+                    chrom=fields[0]
+                    start=int(fields[1])
+                    end=int(fields[2])
+                    
+                    # Validate coordinates
+                    if chrom not in chrom_lengths or start<0 or end>chrom_lengths[chrom] or start>=end:
+                        continue
+                    
+                    # Use strand from field 5 if available, otherwise '+'
+                    strand=fields[5] if len(fields)>5 else '+'
+                    # Use name from field 3 if available, otherwise generate one
+                    name=fields[3] if len(fields)>3 else f"{chrom}_{start}_{end}"
+                    
+                    out.write(f"{chrom}\t{start}\t{end}\t{strand}\t{name}\n")
+    
     def bed_to_intervals(self,bed_file,output_file,add_chr_prefix=False):
         """Convert BED to GATK intervals format"""
         with open(bed_file,'r') as bed,open(output_file,'w') as out:

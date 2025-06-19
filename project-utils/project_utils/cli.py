@@ -34,6 +34,18 @@ def get_args(argv=None):
     intervals.add_argument('-r','--reference',choices=['GRCh38','hg38'],default='GRCh38',help='Reference genome')
     intervals.add_argument('--format',choices=['bed','intervals','picard'],required=True,help='Output format')
     
+    # Validate BED
+    validate=subparsers.add_parser('validate_bed',help='Validate BED file coordinates against reference')
+    validate.add_argument('-i','--input',required=True,help='Input BED file')
+    validate.add_argument('-o','--output',required=True,help='Output clean BED file')
+    validate.add_argument('-d','--dict',required=True,help='Reference dictionary file')
+    
+    # Create Picard intervals
+    picard=subparsers.add_parser('create_picard_intervals',help='Create Picard intervals from bait and target files')
+    picard.add_argument('--bait',required=True,help='Bait file (Covered BED)')
+    picard.add_argument('--target',required=True,help='Target file (Regions BED)')
+    picard.add_argument('-d','--dict',required=True,help='Reference dictionary file')
+    
     return p.parse_args(argv)
 
 def main(argv=None):
@@ -50,6 +62,14 @@ def main(argv=None):
     elif args.command=='process_intervals':
         manager=IntervalManager()
         manager.process_intervals(args)
+    
+    elif args.command=='validate_bed':
+        manager=IntervalManager()
+        manager.validate_bed(args)
+    
+    elif args.command=='create_picard_intervals':
+        manager=IntervalManager()
+        manager.create_picard_intervals(args)
 
 if __name__=='__main__':
     main() 

@@ -1,0 +1,67 @@
+TARGET_MAPPINGS = {
+    # Agilent Exome Panels
+    'AGILENT-S02972011-V3': 'SureSelect-Exon_v3.S02972011',
+    'AGILENT-S04380110-V5': 'SureSelect-Exon_v5.S04380110',
+    'AGILENT-S07604514-V6': 'SureSelect-Exon_v6.S07604514',
+    'AGILENT-S07604715-V6-COSMIC': 'SureSelect-Exon_v6+COSMIC.S07604715',
+    'AGILENT-S31285117-V7': 'SureSelect-Exon_v7.S31285117',
+
+    # Agilent Targeted Panels
+    'AGILENT-S0839281-AD': 'AtopicDermatitis_v1.S0839281',
+    'AGILENT-S03454741-BCNC': 'BCNoncoding-Targeted.S03454741',
+    'AGILENT-S0330901-GT1': 'GermlineTargeted_v1.S0330901',
+    'AGILENT-S0480282-GT2': 'GermlineTargeted_v2.S0480282',
+    'AGILENT-S0729901-GT3': 'GermlineTargeted_v3.S0729901',
+    'AGILENT-S0805921-MEL2': 'MelanomaTargeted_v2.S0805921',
+    'AGILENT-S3094091-MEL3': 'MelanomaTargeted_v3.S3094091',
+    'AGILENT-S0736811-OV': 'OvCA-Targeted.S0736811',
+    'AGILENT-S3246162-PR': 'PrimaryRecurrent-Targeted.S3246162',
+    'AGILENT-S0626671-SIMPLEXO': 'SimplexoTargeted_v1.S0626671',
+
+    # Twist
+    'TWIST-Exome-V2': 'Twist-Exome-Target_grch38',
+    'TWIST-Exome-V2-hg19': 'Twist_Exome_Target_hg19'
+
+    # xGen
+    'XGEN-V2': 'xgen-exome-hyb-v2-targets',
+    'XGEN-V2-PLUS': 'xgen-exome-hyb-v2-targets_plus-backbone'
+
+    # QIAseq
+    'QIASEQ-17028Z-5268': 'QIAseq_DNA_panel.CDHS-17028Z-5268',
+    
+    # NimbleGen
+    'NIMBLEGEN-SC-V3': 'SeqCap_EZ_ExomeV3'
+}
+
+# Additional metadata for each target
+TARGET_METADATA = {
+    'AGILENT-S02972011-V3': {'vendor': 'Agilent', 'type': 'exome', 'version': 'v3'},
+    'AGILENT-S04380110-V5': {'vendor': 'Agilent', 'type': 'exome', 'version': 'v5'},
+    'AGILENT-S07604514-V6': {'vendor': 'Agilent', 'type': 'exome', 'version': 'v6'},
+    'AGILENT-S07604715-V6-COSMIC': {'vendor': 'Agilent', 'type': 'exome', 'version': 'v6', 'features': ['COSMIC']},
+    'AGILENT-S31285117-V7': {'vendor': 'Agilent', 'type': 'exome', 'version': 'v7'},
+    
+    'AGILENT-S0839281-AD': {'vendor': 'Agilent', 'type': 'targeted', 'disease': 'AtopicDermatitis'},
+    'AGILENT-S03454741-BCNC': {'vendor': 'Agilent', 'type': 'targeted', 'disease': 'BCNoncoding'},
+    'AGILENT-S0330901-GT1': {'vendor': 'Agilent', 'type': 'targeted', 'disease': 'Germline'},
+    'AGILENT-S0480282-GT2': {'vendor': 'Agilent', 'type': 'targeted', 'disease': 'Germline'},
+    'AGILENT-S0729901-GT3': {'vendor': 'Agilent', 'type': 'targeted', 'disease': 'Germline'},
+    'AGILENT-S0805921-MEL2': {'vendor': 'Agilent', 'type': 'targeted', 'disease': 'Melanoma'},
+    'AGILENT-S3094091-MEL3': {'vendor': 'Agilent', 'type': 'targeted', 'disease': 'Melanoma'},
+    'AGILENT-S0736811-OVCA': {'vendor': 'Agilent', 'type': 'targeted', 'disease': 'OvCA'},
+    'AGILENT-S3246162-PR': {'vendor': 'Agilent', 'type': 'targeted', 'disease': 'PrimaryRecurrent'},
+    'AGILENT-S0626671-SIMP': {'vendor': 'Agilent', 'type': 'targeted', 'disease': 'Simplexo'},
+
+    'TWIST-REFSEQ-GRCh38': {'vendor': 'Twist', 'type': 'exome', 'reference': 'GRCh38'},
+    'TWIST-REFSEQ-hg19': {'vendor': 'Twist', 'type': 'exome', 'reference': 'hg19'},
+    'TWIST-REFSEQ-hg38': {'vendor': 'Twist', 'type': 'exome', 'reference': 'hg38'},
+
+    'XGEN-V2': {'vendor': 'xGen', 'type': 'exome', 'version': 'v2'},
+    'XGEN-V2-PLUS': {'vendor': 'xGen', 'type': 'exome', 'version': 'v2', 'features': ['backbone']},
+    'XGEN-RESEARCH': {'vendor': 'xGen', 'type': 'exome', 'features': ['research']},
+
+    'QIASEQ-17028Z-5268': {'vendor': 'QIAseq', 'type': 'targeted', 'catalog': 'CDHS-17028Z-5268'},
+    
+    'NIMBLEGEN-SC-V3': {'vendor': 'NimbleGen', 'type': 'exome', 'version': 'v3', 'full_name': 'SeqCap EZ Exome', 'notes': 'Lifted from hg19 to GRCh38'
+    }
+}
