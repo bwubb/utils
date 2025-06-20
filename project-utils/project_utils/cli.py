@@ -32,7 +32,7 @@ def get_args(argv=None):
     intervals.add_argument('-i','--input',required=True,help='Input file (BED or intervals)')
     intervals.add_argument('-o','--output',required=True,help='Output file')
     intervals.add_argument('-r','--reference',choices=['GRCh38','hg38'],default='GRCh38',help='Reference genome')
-    intervals.add_argument('--format',choices=['bed','intervals','picard'],required=True,help='Output format')
+    intervals.add_argument('--format',choices=['bed','intervals'],required=True,help='Output format')
     
     # Validate BED
     validate=subparsers.add_parser('validate_bed',help='Validate BED file coordinates against reference')

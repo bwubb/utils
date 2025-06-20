@@ -60,13 +60,17 @@ rule genomics_db_import:
     output:
         directory("data/work/IBD/snp_db")
     params:
-        ref=config['reference']['fasta']
+        ref=config['reference']['fasta'],
+        gatk_tmp=temp("data/work/IBD/gatk_tmp")
     shell:
         """
-        gatk --java-options '-Xmx64g' GenomicsDBImport \
+        mkdir -p {params.gatk_tmp}
+
+        gatk --java-options '-Xmx64g -Djava.io.tmpdir={params.gatk_tmp}' GenomicsDBImport \
         --genomicsdb-workspace-path {output} \
         --sample-name-map {input.map} \
         -L {input.snps} \
+        --batch-size 50 \
         --merge-input-intervals false \
         --interval-padding 0
         """

@@ -267,13 +267,4 @@ class IntervalManager:
             if is_bed:
                 self.bed_to_intervals(args.input,args.output,add_chr_prefix)
             else:
-                self.intervals_to_intervals(args.input,args.output,add_chr_prefix)
-        elif args.format=='picard':
-            if not is_bed:
-                # First convert intervals to BED
-                temp_bed=args.output+'.temp.bed'
-                self.intervals_to_bed(args.input,temp_bed,add_chr_prefix)
-                self.make_picard_intervals(temp_bed,args.output,args.reference,add_chr_prefix)
-                os.remove(temp_bed)
-            else:
-                self.make_picard_intervals(args.input,args.output,args.reference,add_chr_prefix) 
+                self.intervals_to_intervals(args.input,args.output,add_chr_prefix) 
