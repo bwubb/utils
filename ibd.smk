@@ -61,15 +61,18 @@ rule genomics_db_import:
         directory("data/work/IBD/snp_db")
     params:
         ref=config['reference']['fasta'],
-        gatk_tmp=temp("data/work/IBD/gatk_tmp")
+        gatk_tmp=temp("data/work/IBD/gatk_tmp"),
+        snps=f"data/work/common_snps/{name}/snps.intervals"
     shell:
         """
         mkdir -p {params.gatk_tmp}
 
+        bcftools query -f '%CHROM:%POS-%POS\n' {input.snps} | sort -V | uniq > {params.snps}
+
         gatk --java-options '-Xmx64g -Djava.io.tmpdir={params.gatk_tmp}' GenomicsDBImport \
         --genomicsdb-workspace-path {output} \
         --sample-name-map {input.map} \
-        -L {input.snps} \
+        -L {params.snps} \
         --batch-size 50 \
         --merge-input-intervals false \
         --interval-padding 0
