@@ -198,9 +198,11 @@ class SampleManager:
         os.makedirs(output_dir,exist_ok=True)
         
         # Write sample list
-        with open(os.path.join(output_dir,'sample.list'),'w') as f:
+        sample_list_file=os.path.join(output_dir,'sample.list')
+        with open(sample_list_file,'w') as f:
             for sample in sorted(fastq_files.keys()):
                 f.write(f'{sample}\n')
+        self.logger.info(f"Created: {sample_list_file}")
         
         # Write FASTQ config
         fastq_config={'samples':{}}
@@ -209,21 +211,47 @@ class SampleManager:
                 'files':sorted(files)
             }
         
-        with open(os.path.join(output_dir,'fastq.yml'),'w') as f:
+        fastq_yml_file=os.path.join(output_dir,'fastq.yml')
+        with open(fastq_yml_file,'w') as f:
             yaml.dump(fastq_config,f,default_flow_style=False)
+        self.logger.info(f"Created: {fastq_yml_file}")
         
         # For somatic projects, create tumor/normal lists
         if project_type=='somatic':
             # This would need logic to determine tumor/normal status
             # For now, just create empty files
-            with open(os.path.join(output_dir,'tumor.list'),'w') as f:
+            tumor_file=os.path.join(output_dir,'tumor.list')
+            normal_file=os.path.join(output_dir,'normal.list')
+            pair_file=os.path.join(output_dir,'pair.table')
+            
+            with open(tumor_file,'w') as f:
                 pass
-            with open(os.path.join(output_dir,'normal.list'),'w') as f:
+            with open(normal_file,'w') as f:
                 pass
-            with open(os.path.join(output_dir,'pair.table'),'w') as f:
+            with open(pair_file,'w') as f:
                 pass
+            
+            self.logger.info(f"Created somatic files: {tumor_file}, {normal_file}, {pair_file}")
+    
+    def find_renamed_fastqs(self,input_dir):
+        """Find renamed FASTQ files and organize by sample"""
+        fastq_files=defaultdict(list)
+        all_fastqs=glob.glob(os.path.join(input_dir,'*.fastq.gz'))
+        
+        for f in all_fastqs:
+            basename=os.path.basename(f)
+            # Skip files that start with FGC (original files)
+            if not basename.startswith('FGC'):
+                # Extract sample name from first part of filename
+                sample=basename.split('_')[0]
+                fastq_files[sample].append(f)
+        
+        return fastq_files
     
     def update_samples(self,args):
         """Create sample lists from FASTQ directory"""
-        fastq_files=self.find_fastq_files(args.dir,'fgc')
-        self.update_sample_list(fastq_files,args.dir,args.type) 
+        self.logger.info(f"Scanning directory: {args.dir}")
+        fastq_files=self.find_renamed_fastqs(args.dir)
+        self.logger.info(f"Found {len(fastq_files)} samples: {list(fastq_files.keys())}")
+        self.update_sample_list(fastq_files,args.dir,args.type)
+        self.logger.info(f"Created sample files in: {args.dir}") 
