@@ -224,6 +224,6 @@ class SampleManager:
                 pass
     
     def update_samples(self,args):
-        """Update sample lists and tables from FASTQ directory"""
-        fastq_files=self.find_fastq_files(args.input,args.source)
-        self.update_sample_list(fastq_files,args.output,args.type) 
+        """Create sample lists from FASTQ directory"""
+        fastq_files=self.find_fastq_files(args.dir,'fgc')
+        self.update_sample_list(fastq_files,args.dir,args.type) 

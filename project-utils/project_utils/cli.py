@@ -18,10 +18,8 @@ def get_args(argv=None):
     rename.add_argument('--action',choices=['copy','rename','dryrun'],default='dryrun',help='Action to take')
     
     # Update samples
-    samples=subparsers.add_parser('update_samples',help='Update sample lists and tables from FASTQ directory')
-    samples.add_argument('-i','--input',required=True,help='Input FASTQ directory')
-    samples.add_argument('-o','--output',required=True,help='Output directory for sample files')
-    samples.add_argument('--source',choices=['fgc','nextseq'],default='fgc',help='Source of FASTQ files')
+    samples=subparsers.add_parser('update_samples',help='Create sample lists from FASTQ directory')
+    samples.add_argument('--dir',required=True,help='Directory containing FASTQ files')
     samples.add_argument('--type',choices=['germline','somatic'],required=True,help='Project type')
     
     # Update config
