@@ -224,11 +224,6 @@ class SampleManager:
                 pass
     
     def update_samples(self,args):
-        """Main entry point for sample management"""
-        if os.path.isdir(args.input):
-            # Input is a directory of FASTQ files
-            fastq_files=self.find_fastq_files(args.input,args.source)
-            self.update_sample_list(fastq_files,args.output,args.type)
-        else:
-            # Input is a sample submission file
-            self.process_submission_file(args) 
+        """Update sample lists and tables from FASTQ directory"""
+        fastq_files=self.find_fastq_files(args.input,args.source)
+        self.update_sample_list(fastq_files,args.output,args.type) 

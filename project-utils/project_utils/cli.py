@@ -10,12 +10,18 @@ def get_args(argv=None):
     p=argparse.ArgumentParser()
     subparsers=p.add_subparsers(dest='command',help='Available commands')
     
+    # Rename FASTQ files
+    rename=subparsers.add_parser('rename_fastq',help='Find and rename FASTQ files from submission file')
+    rename.add_argument('-i','--input',required=True,help='Sample submission file')
+    rename.add_argument('--dir',required=True,help='Directory containing FASTQ files')
+    rename.add_argument('--source',choices=['fgc','nextseq'],default='fgc',help='Source of FASTQ files')
+    rename.add_argument('--action',choices=['copy','rename','dryrun'],default='dryrun',help='Action to take')
+    
     # Update samples
-    samples=subparsers.add_parser('update_samples',help='Update sample lists and tables')
-    samples.add_argument('-i','--input',help='Input FASTQ directory or sample submission file')
-    samples.add_argument('-o','--output',help='Output directory for sample files')
+    samples=subparsers.add_parser('update_samples',help='Update sample lists and tables from FASTQ directory')
+    samples.add_argument('-i','--input',required=True,help='Input FASTQ directory')
+    samples.add_argument('-o','--output',required=True,help='Output directory for sample files')
     samples.add_argument('--source',choices=['fgc','nextseq'],default='fgc',help='Source of FASTQ files')
-    samples.add_argument('--action',choices=['copy','rename','dryrun'],default='dryrun',help='Action to take')
     samples.add_argument('--type',choices=['germline','somatic'],required=True,help='Project type')
     
     # Update config
@@ -51,7 +57,11 @@ def get_args(argv=None):
 def main(argv=None):
     args=get_args(argv)
     
-    if args.command=='update_samples':
+    if args.command=='rename_fastq':
+        manager=SampleManager()
+        manager.process_submission_file(args)
+    
+    elif args.command=='update_samples':
         manager=SampleManager()
         manager.update_samples(args)
     

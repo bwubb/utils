@@ -14,7 +14,7 @@ TARGET_MAPPINGS = {
     'AGILENT-S0729901-GT3': 'GermlineTargeted_v3.S0729901',
     'AGILENT-S0805921-MEL2': 'MelanomaTargeted_v2.S0805921',
     'AGILENT-S3094091-MEL3': 'MelanomaTargeted_v3.S3094091',
-    'AGILENT-S0736811-OV': 'OvCA-Targeted.S0736811',
+    'AGILENT-S0736811-OV': 'OvCA-Targeted.S0736811',_
     'AGILENT-S3246162-PR': 'PrimaryRecurrent-Targeted.S3246162',
     'AGILENT-S0626671-SIMPLEXO': 'SimplexoTargeted_v1.S0626671',
 
