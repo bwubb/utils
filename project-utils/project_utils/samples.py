@@ -193,7 +193,7 @@ class SampleManager:
         
         return fastq_files
     
-    def update_sample_list(self,fastq_files,output_dir,project_type):
+    def update_sample_list(self,fastq_files,output_dir):
         """Update or create sample list"""
         os.makedirs(output_dir,exist_ok=True)
         
@@ -202,7 +202,7 @@ class SampleManager:
         with open(sample_list_file,'w') as f:
             for sample in sorted(fastq_files.keys()):
                 f.write(f'{sample}\n')
-        self.logger.info(f"Created: {sample_list_file}")
+        print(f"Created: {sample_list_file}")
         
         # Write FASTQ config
         fastq_config={'samples':{}}
@@ -214,24 +214,7 @@ class SampleManager:
         fastq_yml_file=os.path.join(output_dir,'fastq.yml')
         with open(fastq_yml_file,'w') as f:
             yaml.dump(fastq_config,f,default_flow_style=False)
-        self.logger.info(f"Created: {fastq_yml_file}")
-        
-        # For somatic projects, create tumor/normal lists
-        if project_type=='somatic':
-            # This would need logic to determine tumor/normal status
-            # For now, just create empty files
-            tumor_file=os.path.join(output_dir,'tumor.list')
-            normal_file=os.path.join(output_dir,'normal.list')
-            pair_file=os.path.join(output_dir,'pair.table')
-            
-            with open(tumor_file,'w') as f:
-                pass
-            with open(normal_file,'w') as f:
-                pass
-            with open(pair_file,'w') as f:
-                pass
-            
-            self.logger.info(f"Created somatic files: {tumor_file}, {normal_file}, {pair_file}")
+        print(f"Created: {fastq_yml_file}")
     
     def find_renamed_fastqs(self,input_dir):
         """Find renamed FASTQ files and organize by sample"""
@@ -250,8 +233,8 @@ class SampleManager:
     
     def update_samples(self,args):
         """Create sample lists from FASTQ directory"""
-        self.logger.info(f"Scanning directory: {args.dir}")
+        print(f"Scanning directory: {args.dir}")
         fastq_files=self.find_renamed_fastqs(args.dir)
-        self.logger.info(f"Found {len(fastq_files)} samples: {list(fastq_files.keys())}")
-        self.update_sample_list(fastq_files,args.dir,args.type)
-        self.logger.info(f"Created sample files in: {args.dir}") 
+        print(f"Found {len(fastq_files)} samples: {list(fastq_files.keys())}")
+        self.update_sample_list(fastq_files,args.dir)
+        print(f"Created sample files in: {args.dir}") 

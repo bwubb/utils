@@ -20,7 +20,6 @@ def get_args(argv=None):
     # Update samples
     samples=subparsers.add_parser('update_samples',help='Create sample lists from FASTQ directory')
     samples.add_argument('--dir',required=True,help='Directory containing FASTQ files')
-    samples.add_argument('--type',choices=['germline','somatic'],required=True,help='Project type')
     
     # Update config
     config=subparsers.add_parser('update_config',help='Update project configuration')
