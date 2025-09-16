@@ -1,0 +1,19 @@
+# ClinVar AutoGVP Pipeline Configuration
+
+clinvar:
+  config_file: "clinvar_config.yml"
+  concept_id_list: "data/clinvar_cpg_concept_ids.txt"
+  conflict_resolution: "latest"
+  autogvp_url: "https://example.com/autogvp.tsv"  # Update with actual URL
+
+# FTP URLs for ClinVar data
+ftp:
+  base_url: "ftp://ftp.ncbi.nlm.nih.gov/pub/clinvar"
+  vcf_path: "vcf_GRCh38/clinvar.vcf.gz"
+  variant_summary_path: "tab_delimited/variant_summary.txt.gz"
+  submission_summary_path: "tab_delimited/submission_summary.txt.gz"
+
+# Output settings
+output:
+  date_format: "%Y%m%d"
+  final_vcf_prefix: "clinvar.autogvp"
