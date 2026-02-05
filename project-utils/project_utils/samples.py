@@ -193,28 +193,23 @@ class SampleManager:
         
         return fastq_files
     
-    def update_sample_list(self,fastq_files,output_dir):
-        """Update or create sample list"""
-        os.makedirs(output_dir,exist_ok=True)
-        
-        # Write sample list
-        sample_list_file=os.path.join(output_dir,'sample.list')
+    def update_sample_list(self,fastq_files,output_dir=None):
+        """Update or create sample list. output_dir: where to write sample.list and fastq.yml (default cwd)."""
+        out=output_dir or os.getcwd()
+        os.makedirs(out,exist_ok=True)
+        sample_list_file=os.path.join(out,'sample.list')
         with open(sample_list_file,'w') as f:
             for sample in sorted(fastq_files.keys()):
                 f.write(f'{sample}\n')
         print(f"Created: {sample_list_file}")
-        
-        # Write FASTQ config
-        fastq_config={'samples':{}}
+        fastq_config={}
         for sample,files in fastq_files.items():
-            fastq_config['samples'][sample]={
-                'files':sorted(files)
-            }
-        
-        fastq_yml_file=os.path.join(output_dir,'fastq.yml')
+            fastq_config[sample]={'files':sorted(files)}
+        fastq_yml_file=os.path.join(out,'fastq.yml')
         with open(fastq_yml_file,'w') as f:
             yaml.dump(fastq_config,f,default_flow_style=False)
         print(f"Created: {fastq_yml_file}")
+        print(f"Sample files written to: {os.path.abspath(out)}")
     
     def find_renamed_fastqs(self,input_dir):
         """Find renamed FASTQ files and organize by sample"""
@@ -232,9 +227,8 @@ class SampleManager:
         return fastq_files
     
     def update_samples(self,args):
-        """Create sample lists from FASTQ directory"""
+        """Create sample lists from FASTQ directory. Writes sample.list and fastq.yml to --output-dir (default cwd), not into --dir."""
         print(f"Scanning directory: {args.dir}")
         fastq_files=self.find_renamed_fastqs(args.dir)
         print(f"Found {len(fastq_files)} samples: {list(fastq_files.keys())}")
-        self.update_sample_list(fastq_files,args.dir)
-        print(f"Created sample files in: {args.dir}") 
+        self.update_sample_list(fastq_files,getattr(args,'output_dir',None)) 

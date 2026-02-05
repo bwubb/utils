@@ -1,0 +1,71 @@
+'__default__':
+    'M': '6144'  #6GB (6 * 1024 = 6144 MB)
+    'n': '1'
+    'J': '{wildcards.sample}_{rule}'
+    'oo': 'logs/cluster/{wildcards.sample}/{rule}.o'
+    'eo': 'logs/cluster/{wildcards.sample}/{rule}.e'
+    'R': '"span[hosts=1] rusage[mem=6144]"'
+
+'gatk_alleles':
+    'M': '5120'  #5GB (5 * 1024 = 5120 MB)
+    'n': '1'
+    'J': '{wildcards.sample}_{rule}'
+    'oo': 'logs/cluster/{wildcards.sample}/{rule}.o'
+    'eo': 'logs/cluster/{wildcards.sample}/{rule}.e'
+    'R': '"span[hosts=1] rusage[mem=5120]"'
+
+'combine_gvcfs_chr':
+    'M': '16384'  #16GB (16 * 1024 = 16384 MB)
+    'n': '1'
+    'J': 'ibd2_{rule}_{wildcards.chr}'
+    'oo': 'logs/cluster/ibd2/{rule}_{wildcards.chr}.o'
+    'eo': 'logs/cluster/ibd2/{rule}_{wildcards.chr}.e'
+    'R': '"span[hosts=1] rusage[mem=16384]"'
+
+'genotype_gvcfs_chr':
+    'M': '16384'  #16GB (16 * 1024 = 16384 MB)
+    'n': '1'
+    'J': 'ibd2_{rule}_{wildcards.chr}'
+    'oo': 'logs/cluster/ibd2/{rule}_{wildcards.chr}.o'
+    'eo': 'logs/cluster/ibd2/{rule}_{wildcards.chr}.e'
+    'R': '"span[hosts=1] rusage[mem=16384]"'
+
+'merge_chromosomes':
+    'M': '8192'  #8GB (8 * 1024 = 8192 MB)
+    'n': '1'
+    'J': 'ibd2_{rule}'
+    'oo': 'logs/cluster/ibd2/{rule}.o'
+    'eo': 'logs/cluster/ibd2/{rule}.e'
+    'R': '"span[hosts=1] rusage[mem=8192]"'
+
+'bcftools_vcf_norm':
+    'M': '8192'  #8GB (8 * 1024 = 8192 MB)
+    'n': '1'
+    'J': 'ibd2_{rule}'
+    'oo': 'logs/cluster/ibd2/{rule}.o'
+    'eo': 'logs/cluster/ibd2/{rule}.e'
+    'R': '"span[hosts=1] rusage[mem=8192]"'
+
+'bcftools_vcf_clean':
+    'M': '8192'  #8GB (8 * 1024 = 8192 MB)
+    'n': '1'
+    'J': 'ibd2_{rule}'
+    'oo': 'logs/cluster/ibd2/{rule}.o'
+    'eo': 'logs/cluster/ibd2/{rule}.e'
+    'R': '"span[hosts=1] rusage[mem=8192]"'
+
+'run_plink_genome':
+    'M': '16384'  #16GB (16 * 1024 = 16384 MB)
+    'n': '1'
+    'J': 'ibd2_{rule}'
+    'oo': 'logs/cluster/ibd2/{rule}.o'
+    'eo': 'logs/cluster/ibd2/{rule}.e'
+    'R': '"span[hosts=1] rusage[mem=16384]"'
+
+'report_ibd':
+    'M': '4096'  #4GB (4 * 1024 = 4096 MB)
+    'n': '1'
+    'J': 'ibd2_{rule}'
+    'oo': 'logs/cluster/ibd2/{rule}.o'
+    'eo': 'logs/cluster/ibd2/{rule}.e'
+    'R': '"span[hosts=1] rusage[mem=4096]"'

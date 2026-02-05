@@ -1,4 +1,4 @@
-import cyvcf2
+import vcfpy
 import os
 import csv
 import argparse
@@ -83,7 +83,12 @@ class TumorNormalAnnot:
             #Basic sample information
             x[f'{prefix}ID']=c['sample']
             x[f'{prefix}Depth']=f"{c.get('DP','.')}"
-            x[f'{prefix}Zyg']=f"{(c.get('gt_bases','./.')).replace('/',';')}"
+            # gt_bases format is already / separated, convert to ; for zygosity
+            gt_bases=c.get('gt_bases','./.')
+            if isinstance(gt_bases,str):
+                x[f'{prefix}Zyg']=f"{gt_bases.replace('/',';')}"
+            else:
+                x[f'{prefix}Zyg']='./.'
 
             #First try to use AD if available
             if 'AD' in c and c.get('AD') not in [None,'.',['.'],[],['None']]:
@@ -363,16 +368,28 @@ class VEPannotation(BasicInfoAnnot,GnomadAnnot,ClinvarAnnot,SpliceAIAnnot,
     """
     def __init__(self,record,vcf_reader,tumor_normal=False,tumor_id=None,no_sample=False,single_sample=None):
         self.fields=defaultdict(str)
+        # vcfpy: use uppercase attributes
         self.fields['Chr']=f"{record.CHROM}"
-        self.fields['Start']=f"{record.POS}"
+        self.fields['Start']=f"{record.POS}"  # vcfpy POS is 1-based
         self.fields['REF']=f"{record.REF}"
-        self.fields['ALT']=f"{record.ALT[0]}"
-        #Handle FILTER - can be None when filter is PASS
-        if record.FILTER is None:
+        # vcfpy: ALT is list of AltRecord objects, get value from first
+        if record.ALT and len(record.ALT)>0:
+            alt_record=record.ALT[0]
+            # AltRecord can be Substitution (has .value) or other types
+            if hasattr(alt_record,'value'):
+                self.fields['ALT']=f"{alt_record.value}"
+            else:
+                self.fields['ALT']=f"{alt_record.serialize()}"
+        else:
+            self.fields['ALT']="."
+        #Handle FILTER - vcfpy FILTER is list of strings
+        if not record.FILTER or len(record.FILTER)==0:
             self.fields['FILTER']='PASS'
         else:
-            self.fields['FILTER']=f"{record.FILTER}".replace("MONOALLELIC",'.')
-        self.fields['ID']=f"{record.ID}" if record.ID else "."
+            filter_str=';'.join(record.FILTER) if isinstance(record.FILTER,list) else str(record.FILTER)
+            self.fields['FILTER']=filter_str.replace("MONOALLELIC",'.')
+        # vcfpy: ID is list of strings
+        self.fields['ID']=f"{';'.join(record.ID)}" if record.ID and len(record.ID)>0 else "."
         
         if no_sample:
             #Skip sample data extraction for no_sample mode
@@ -381,45 +398,57 @@ class VEPannotation(BasicInfoAnnot,GnomadAnnot,ClinvarAnnot,SpliceAIAnnot,
         else:
             #Extract sample data
             sample_data=[]
-            for i,sample_name in enumerate(vcf_reader.samples):
+            # vcfpy: access samples via record.calls (list of Call objects) or record.call_for_sample
+            for call in record.calls:
+                sample_name=call.sample
                 # In single mode, only process the specified sample
                 if single_sample and sample_name!=single_sample:
                     continue
                 
                 try:
-                    gt_list=record.genotypes[i]
-                    if gt_list and len(gt_list)>0:
-                        # Filter out the phasing boolean (last element) and get only valid allele indices
-                        allele_indices=[gt for gt in gt_list[:-1] if isinstance(gt,int) and gt>=0]
-                        if allele_indices:
-                            # Use phasing info: True = |, False = /
-                            phasing='|' if len(gt_list)>2 and gt_list[-1] else '/'
-                            genotype=phasing.join([str(allele_idx) for allele_idx in allele_indices])
-                        else:
-                            genotype='./.'
-                    else:
+                    # vcfpy: GT is in call.data dict
+                    genotype=call.data.get('GT')
+                    if genotype is None:
                         genotype='./.'
+                    else:
+                        # GT format is already like "0/1" or "0|1"
+                        genotype=str(genotype)
                 except Exception as e:
                     print(f"Error parsing genotype for sample {sample_name} at {record.CHROM}:{record.POS}: {e}")
                     print(f"  Raw record: {record}")
                     genotype='./.'
                 
-                dp=record.gt_depths[i] if record.gt_depths is not None else 0
+                # vcfpy: DP accessed via call.data['DP']
+                dp=0
+                try:
+                    dp_val=call.data.get('DP')
+                    if dp_val is not None:
+                        dp=int(dp_val)
+                except (ValueError,TypeError):
+                    dp=0
                 
-                # Handle AD field
+                # Handle AD field - vcfpy AD is list [ref, alt1, alt2, ...]
                 alt_depth=0
-                if record.gt_alt_depths is not None and hasattr(record.gt_alt_depths,'__len__') and len(record.gt_alt_depths) > i:
-                    alt_depth=int(record.gt_alt_depths[i])
-                
                 ref_depth=0
-                if record.gt_ref_depths is not None and hasattr(record.gt_ref_depths,'__len__') and len(record.gt_ref_depths) > i:
-                    ref_depth=int(record.gt_ref_depths[i])
-                else:
+                try:
+                    ad=call.data.get('AD')
+                    if ad is not None:
+                        if isinstance(ad,(list,tuple)) and len(ad)>1:
+                            ref_depth=int(ad[0]) if ad[0] is not None else 0
+                            alt_depth=int(ad[1]) if ad[1] is not None else 0
+                        elif isinstance(ad,(list,tuple)) and len(ad)==1:
+                            ref_depth=int(ad[0]) if ad[0] is not None else 0
+                except (ValueError,TypeError,IndexError):
+                    pass
+                
+                # Fallback: calculate ref_depth from DP if AD not available
+                if ref_depth==0 and dp>0 and alt_depth==0:
                     ref_depth=max(0,dp-alt_depth)
                 
                 sample_data.append({
                     'sample':sample_name,
                     'genotype':genotype,
+                    'gt_bases':genotype,  # For TumorNormalAnnot compatibility
                     'DP':dp,
                     'AD':[ref_depth,alt_depth]
                 })
@@ -532,6 +561,13 @@ def phred_to_probability(phred_score):
     elif phred_score[0]=='inf' or phred_score[0]==float('inf'):
         return "0.0"
     return f"{10**(-float(phred_score[0])/10):.5f}"
+
+def open_variant_file(filename):
+    """
+    Open VCF or VCF.gz file using vcfpy.
+    vcfpy.Reader.from_path() auto-detects and handles compressed files.
+    """
+    return vcfpy.Reader.from_path(filename)
 
 def get_args(argv):
     p=argparse.ArgumentParser()
@@ -656,24 +692,33 @@ def main(argv=None):
 
     #test data
     #VcfReader=vcfpy.Reader.from_path('data/vcf/FLCN/PMBB-Release-2020-2.0_genetic_exome_FLCN_NF.norm.vep.vcf.gz')
-    VcfReader=cyvcf2.Reader(f'{args.input_vcf}')
+    # vcfpy: open VCF/VCF.gz file (auto-detects and handles compressed files)
+    VcfReader=open_variant_file(args.input_vcf)
     #VLR wants ANN tag instead of CSQ.
     #Changed CSQ to ANN
     #Parse ANN header to get field names
     ann_header=None
     try:
-        #Get ANN field info directly from header
-        ann_info=VcfReader.get_header_type('ANN')
+        # vcfpy: access INFO field info via header.get_info_field_info()
+        ann_info=VcfReader.header.get_info_field_info('ANN')
         if ann_info:
-            ann_header=ann_info['Description'].split(' ')[-1].rstrip('">').split('|')
+            desc=ann_info.description
+            # Extract field list from description like "Consequence annotations from Ensembl VEP. Format: Allele|Consequence|..."
+            if desc and 'Format:' in desc:
+                ann_header=desc.split('Format:')[-1].strip().split('|')
+            elif desc:
+                # Fallback: try to extract from description
+                ann_header=desc.split(' ')[-1].rstrip('">').split('|')
     except:
-        #Fallback to manual parsing if direct method fails
-        for header_line in VcfReader.header_iter():
-            if hasattr(header_line,'key') and header_line.key=='INFO':
-                if hasattr(header_line,'id') and header_line.id=='ANN':
-                    desc=getattr(header_line,'description','')
+        #Fallback: iterate through header lines
+        for line in VcfReader.header.get_lines('INFO'):
+            if hasattr(line,'id') and line.id=='ANN':
+                desc=line.description if hasattr(line,'description') else None
+                if desc and 'Format:' in desc:
+                    ann_header=desc.split('Format:')[-1].strip().split('|')
+                elif desc:
                     ann_header=desc.split(' ')[-1].rstrip('">').split('|')
-                    break
+                break
     
     if not ann_header:
         raise ValueError("ANN header not found in VCF file")
@@ -689,37 +734,69 @@ def main(argv=None):
         skipped_no_symbol=0
         skipped_filters=0
         skipped_blacklist=0
-        for record in VcfReader:
+        skipped_malformed=0
+        while True:
+            try:
+                record=next(VcfReader)
+            except StopIteration:
+                # End of file
+                break
+            except vcfpy.exceptions.InvalidRecordException as e:
+                skipped_malformed+=1
+                variant_count+=1
+                # Continue to next record
+                continue
+            except Exception as e:
+                # Unexpected error - print and re-raise
+                print(f"Unexpected error at variant {variant_count}: {e}")
+                raise
+            
             variant_count+=1
             if variant_count % 10000 == 0:
                 print(f"Processed {variant_count} variants...")
             if variant_count % 1000 == 0:
                 print(f"  Processing variant {variant_count} at {record.CHROM}:{record.POS}")
+            # vcfpy: ALT is list of AltRecord objects
             if len(record.ALT)>1:
                 print(f"Warning! : record.ALT length is {len(record.ALT)}. Not currently supported")
             single_sample_name=sample if single else None
             vep_data=VEPannotation(record,VcfReader,tumor_normal,tumor,args.mode=='no_sample',single_sample_name)
 
-            if record.INFO.get('ANN') is None:
+            # vcfpy: access INFO via record.INFO (OrderedDict)
+            if 'ANN' not in record.INFO or record.INFO.get('ANN') is None:
                 skipped_no_ann+=1
                 continue
-            if 'RefCall' in record.FILTERS and not ref_call:
+            # vcfpy: FILTER is list of strings
+            if 'RefCall' in record.FILTER and not ref_call:
                 skipped_refcall+=1
                 continue
 
             if tumor_normal:
-                categories=[y for x in CALLER_TOOLS for y in record.INFO.get("CATEGORY",['NA']) if x in y and record.INFO.get(x,['NA'])==['PASS']]
+                # vcfpy: INFO values can be lists or single values
+                category_info=record.INFO.get("CATEGORY",['NA'])
+                if not isinstance(category_info,list):
+                    category_info=[category_info]
+                categories=[y for x in CALLER_TOOLS for y in category_info if x in y]
+                # Check if caller has PASS
                 for x in CALLER_TOOLS:
-                    vep_data.fields[x]=record.INFO.get(x,['NA'])[0]
+                    caller_value=record.INFO.get(x,['NA'])
+                    if not isinstance(caller_value,list):
+                        caller_value=[caller_value]
+                    # Only add to categories if PASS
+                    if caller_value==['PASS']:
+                        categories=[y for y in categories if x in y]
+                    vep_data.fields[x]=caller_value[0] if caller_value else 'NA'
                 vep_data.fields["Variant.Category"]=";".join(categories) if categories else 'NA'
 
             if args.include_vlr:
-                #Get INFO field IDs
-                for header_line in VcfReader.header_iter():
-                    if header_line.key=='INFO':
-                        info_id=header_line.id
-                        if info_id.startswith("PROB_"):
-                            vep_data.fields[info_id]=phred_to_probability(record.INFO.get(info_id,['NA']))
+                #Get INFO field IDs - vcfpy: iterate through header.info_ids()
+                for info_id in VcfReader.header.info_ids():
+                    if info_id.startswith("PROB_"):
+                        info_value=record.INFO.get(info_id,['NA'])
+                        # vcfpy INFO values can be lists or single values
+                        if not isinstance(info_value,list):
+                            info_value=[info_value]
+                        vep_data.fields[info_id]=phred_to_probability(info_value)
                         #Maybe this goes into class
 
             #First pass - find any canonical+high impact
@@ -727,7 +804,13 @@ def main(argv=None):
             canonical_found=False
             #Saud had suggested we do high impact even if we don't have a canonical.
             #It may have required another annotation, I dont recall.
-            for csq_i in record.INFO['ANN'].split(','):
+            # vcfpy: ANN is typically a string, but handle list case
+            ann_value=record.INFO['ANN']
+            if isinstance(ann_value,list):
+                ann_value=','.join(str(v) for v in ann_value)
+            else:
+                ann_value=str(ann_value)
+            for csq_i in ann_value.split(','):
                 csq_dict=dict(zip(ann_header,csq_i.split('|')))
                 if csq_dict['SYMBOL']!='' and csq_dict['CANONICAL']=='YES':
                     canonical_found=True
@@ -749,7 +832,8 @@ def main(argv=None):
 
             if not high_impact:
                 #Process first canonical for each gene
-                for csq_i in record.INFO['ANN'].split(','):
+                # Use same ann_value from above
+                for csq_i in ann_value.split(','):
                     csq_dict=dict(zip(ann_header,csq_i.split('|')))
                     if csq_dict['SYMBOL']!='' and csq_dict['CANONICAL']=='YES':
                         if process_annotation(vep_data,csq_dict,tumor_normal,single,tumor,normal,sample):
@@ -768,9 +852,10 @@ def main(argv=None):
             # Track skipped variants
             if not canonical_found:
                 skipped_no_canonical+=1
-            elif not any(csq_dict.get('SYMBOL','')!='' for csq_i in record.INFO['ANN'].split(',') for csq_dict in [dict(zip(ann_header,csq_i.split('|')))]):
+            elif not any(csq_dict.get('SYMBOL','')!='' for csq_i in ann_value.split(',') for csq_dict in [dict(zip(ann_header,csq_i.split('|')))]):
                 skipped_no_symbol+=1
 
+    VcfReader.close()
     print(f"Total variants processed: {variant_count}")
     print(f"Variants written to output: {processed_count}")
     print(f"Variants skipped - no ANN: {skipped_no_ann}")
@@ -779,6 +864,7 @@ def main(argv=None):
     print(f"Variants skipped - no symbol: {skipped_no_symbol}")
     print(f"Variants skipped - blacklist: {skipped_blacklist}")
     print(f"Variants skipped - filters: {skipped_filters}")
+    print(f"Variants skipped - malformed: {skipped_malformed}")
     print(f"{outfile.name} written.")
 
 if __name__=='__main__':

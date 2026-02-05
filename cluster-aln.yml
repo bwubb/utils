@@ -1,36 +1,36 @@
 '__default__':
-    'M': '6291456'  #6 GB (6291456/1024/1024)
+    'M': '6144'  #6 GB (6 * 1024 = 6144 MB)
     'n': '1'
     'J': '{wildcards.sample}_{rule}'
     'oo': 'logs/cluster/aln/{wildcards.sample}/{rule}.o'
     'eo': 'logs/cluster/aln/{wildcards.sample}/{rule}.e'
     'R': '"span[hosts=1] rusage[mem=6144]"'
 'bwa_mem':
-    'M': '33554432'  #32 GB (33554432/1024/1024)
+    'M': '16384'  #16 GB (16 * 1024 = 16384 MB)
     'n': '4'
     'eo': 'logs/cluster/aln/{wildcards.sample}/{rule}.{wildcards.run}.{wildcards.lane}.{wildcards.index}.e'
     'oo': 'logs/cluster/aln/{wildcards.sample}/{rule}.{wildcards.run}.{wildcards.lane}.{wildcards.index}.o'
-    'R': '"span[hosts=1] rusage[mem=32768]"'
+    'R': '"span[hosts=1] rusage[mem=16384]"'
 'samtools_readgroup':
-    'M': '33554432'  #32 GB (33554432/1024/1024)
+    'M': '16384'  #16 GB (16 * 1024 = 16384 MB)
     'n': '4'
     'eo': 'logs/cluster/aln/{wildcards.sample}/{rule}.{wildcards.run}.{wildcards.lane}.{wildcards.index}.e'
     'oo': 'logs/cluster/aln/{wildcards.sample}/{rule}.{wildcards.run}.{wildcards.lane}.{wildcards.index}.o'
-    'R': '"span[hosts=1] rusage[mem=32768]"'
+    'R': '"span[hosts=1] rusage[mem=16384]"'
 'samtools_markdup':
-    'M': '33554432'  #32 GB (33554432/1024/1024)
+    'M': '16384'  #16 GB (16 * 1024 = 16384 MB)
     'n': '4'
     'eo': 'logs/cluster/aln/{wildcards.sample}/{rule}.{wildcards.run}.{wildcards.lane}.{wildcards.index}.e'
     'oo': 'logs/cluster/aln/{wildcards.sample}/{rule}.{wildcards.run}.{wildcards.lane}.{wildcards.index}.o'
-    'R': '"span[hosts=1] rusage[mem=32768]"'
+    'R': '"span[hosts=1] rusage[mem=16384]"'
 'input_ready':
-    'M': '33554432'  #32 GB (33554432/1024/1024)
+    'M': '16384'  #16 GB (16 * 1024 = 16384 MB)
     'n': '4'
-    'R': '"span[hosts=1] rusage[mem=32768]"'
+    'R': '"span[hosts=1] rusage[mem=16384]"'
 
 # Metrics rules
 'gatk_CollectAlignmentSummaryMetrics':
-    'M': '5242880'  #5 GB (5242880/1024/1024)
+    'M': '5120'  #5 GB (5 * 1024 = 5120 MB)
     'n': '1'
     'J': '{wildcards.sample}_{rule}'
     'oo': 'logs/cluster/metrics/{wildcards.sample}/{rule}.o'
@@ -38,7 +38,7 @@
     'R': '"span[hosts=1] rusage[mem=5120]"'
 
 'gatk_CollectInsertSizeMetrics':
-    'M': '5242880'  #5 GB (5242880/1024/1024)
+    'M': '5120'  #5 GB (5 * 1024 = 5120 MB)
     'n': '1'
     'J': '{wildcards.sample}_{rule}'
     'oo': 'logs/cluster/metrics/{wildcards.sample}/{rule}.o'
@@ -46,7 +46,7 @@
     'R': '"span[hosts=1] rusage[mem=5120]"'
 
 'gatk_CollectHsMetrics':
-    'M': '5242880'  #5 GB (5242880/1024/1024)
+    'M': '5120'  #5 GB (5 * 1024 = 5120 MB)
     'n': '1'
     'J': '{wildcards.sample}_{rule}'
     'oo': 'logs/cluster/metrics/{wildcards.sample}/{rule}.o'
@@ -54,7 +54,7 @@
     'R': '"span[hosts=1] rusage[mem=5120]"'
 
 'samtools_flagstat':
-    'M': '4194304'  #4 GB (4194304/1024/1024)
+    'M': '4096'  #4 GB (4 * 1024 = 4096 MB)
     'n': '1'
     'J': '{wildcards.sample}_{rule}'
     'oo': 'logs/cluster/metrics/{wildcards.sample}/{rule}.o'
@@ -62,7 +62,7 @@
     'R': '"span[hosts=1] rusage[mem=4096]"'
 
 'samtools_readlength':
-    'M': '4194304'  #4 GB (4194304/1024/1024)
+    'M': '4096'  #4 GB (4 * 1024 = 4096 MB)
     'n': '1'
     'J': '{wildcards.sample}_{rule}'
     'oo': 'logs/cluster/metrics/{wildcards.sample}/{rule}.o'
@@ -70,7 +70,7 @@
     'R': '"span[hosts=1] rusage[mem=4096]"'
 
 'metrics_summary':
-    'M': '4194304'  #4 GB (4194304/1024/1024)
+    'M': '4096'  #4 GB (4 * 1024 = 4096 MB)
     'n': '1'
     'J': 'metrics_{rule}'
     'oo': 'logs/cluster/metrics/{rule}.o'
@@ -78,7 +78,7 @@
     'R': '"span[hosts=1] rusage[mem=4096]"'
 
 'target_coverage_summary':
-    'M': '4194304'  #4 GB (4194304/1024/1024)
+    'M': '4096'  #4 GB (4 * 1024 = 4096 MB)
     'n': '1'
     'J': 'metrics_{rule}'
     'oo': 'logs/cluster/metrics/{rule}.o'

@@ -1,5 +1,5 @@
 '__default__':
-    'M': '6291456'  #6GB (6291456/1024/1024)
+    'M': '6144'  #6GB (6 * 1024 = 6144 MB)
     'n': '1'
     'J': '{wildcards.sample}_{rule}'
     'oo': 'logs/cluster/{wildcards.sample}/{rule}.o'
@@ -7,7 +7,7 @@
     'R': '"span[hosts=1] rusage[mem=6144]"'
 
 'gatk_alleles':
-    'M': '5242880'  #5GB (5242880/1024/1024)
+    'M': '5120'  #5GB (5 * 1024 = 5120 MB)
     'n': '1'
     'J': '{wildcards.sample}_{rule}'
     'oo': 'logs/cluster/{wildcards.sample}/{rule}.o'
@@ -15,7 +15,7 @@
     'R': '"span[hosts=1] rusage[mem=5120]"'
 
 'genomics_db_import':
-    'M': '67108864'  #64GB (67108864/1024/1024)
+    'M': '65536'  #64GB (64 * 1024 = 65536 MB)
     'n': '1'
     'J': 'ibd_{rule}'
     'oo': 'logs/cluster/ibd/{rule}.o'
@@ -23,7 +23,7 @@
     'R': '"span[hosts=1] rusage[mem=65536]"'
 
 'genotype_gvcfs':
-    'M': '16777216'  #16GB (16777216/1024/1024)
+    'M': '16384'  #16GB (16 * 1024 = 16384 MB)
     'n': '1'
     'J': 'ibd_{rule}'
     'oo': 'logs/cluster/ibd/{rule}.o'
@@ -31,7 +31,7 @@
     'R': '"span[hosts=1] rusage[mem=16384]"'
 
 'bcftools_vcf_norm':
-    'M': '8388608'  #8GB (8388608/1024/1024)
+    'M': '8192'  #8GB (8 * 1024 = 8192 MB)
     'n': '1'
     'J': 'ibd_{rule}'
     'oo': 'logs/cluster/ibd/{rule}.o'
@@ -39,7 +39,7 @@
     'R': '"span[hosts=1] rusage[mem=8192]"'
 
 'bcftools_vcf_clean':
-    'M': '8388608'  #8GB (8388608/1024/1024)
+    'M': '8192'  #8GB (8 * 1024 = 8192 MB)
     'n': '1'
     'J': 'ibd_{rule}'
     'oo': 'logs/cluster/ibd/{rule}.o'
@@ -47,7 +47,7 @@
     'R': '"span[hosts=1] rusage[mem=8192]"'
 
 'run_plink_genome':
-    'M': '16777216'  #16GB (16777216/1024/1024)
+    'M': '16384'  #16GB (16 * 1024 = 16384 MB)
     'n': '1'
     'J': 'ibd_{rule}'
     'oo': 'logs/cluster/ibd/{rule}.o'
@@ -55,7 +55,7 @@
     'R': '"span[hosts=1] rusage[mem=16384]"'
 
 'report_ibd':
-    'M': '4194304'  #4GB (4194304/1024/1024)
+    'M': '4096'  #4GB (4 * 1024 = 4096 MB)
     'n': '1'
     'J': 'ibd_{rule}'
     'oo': 'logs/cluster/ibd/{rule}.o'
@@ -64,7 +64,7 @@
 
 # Common SNPs rules
 'select_from_prefiltered':
-    'M': '5242880'  #5GB (5242880/1024/1024)
+    'M': '5120'  #5GB (5 * 1024 = 5120 MB)
     'n': '1'
     'J': 'common_snps_{rule}'
     'oo': 'logs/cluster/common_snps/{rule}.o'
@@ -72,7 +72,7 @@
     'R': '"span[hosts=1] rusage[mem=5120]"'
 
 'select_variants':
-    'M': '5242880'  #5GB (5242880/1024/1024)
+    'M': '5120'  #5GB (5 * 1024 = 5120 MB)
     'n': '1'
     'J': 'common_snps_{rule}'
     'oo': 'logs/cluster/common_snps/{rule}.o'
@@ -80,7 +80,7 @@
     'R': '"span[hosts=1] rusage[mem=5120]"'
 
 'simplify_vcf':
-    'M': '4194304'  #4GB (4194304/1024/1024)
+    'M': '4096'  #4GB (4 * 1024 = 4096 MB)
     'n': '1'
     'J': 'common_snps_{rule}'
     'oo': 'logs/cluster/common_snps/{rule}.o'
@@ -88,7 +88,7 @@
     'R': '"span[hosts=1] rusage[mem=4096]"'
 
 'index_simplified':
-    'M': '4194304'  #4GB (4194304/1024/1024)
+    'M': '4096'  #4GB (4 * 1024 = 4096 MB)
     'n': '1'
     'J': 'common_snps_{rule}'
     'oo': 'logs/cluster/common_snps/{rule}.o'
@@ -96,7 +96,7 @@
     'R': '"span[hosts=1] rusage[mem=4096]"'
 
 'filter_common_snps':
-    'M': '5242880'  #5GB (5242880/1024/1024)
+    'M': '5120'  #5GB (5 * 1024 = 5120 MB)
     'n': '1'
     'J': 'common_snps_{rule}'
     'oo': 'logs/cluster/common_snps/{rule}.o'

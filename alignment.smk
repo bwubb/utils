@@ -1,6 +1,11 @@
 import os
 import yaml
 
+# Create log directories
+os.makedirs('logs/cluster/aln',exist_ok=True)
+os.makedirs('logs/cluster/metrics',exist_ok=True)
+
+
 ### FUNCTIONS ###
 
 def map_input(wildcards):

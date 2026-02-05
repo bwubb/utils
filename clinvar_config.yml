@@ -4,6 +4,7 @@ clinvar:
   config_file: "clinvar_config.yml"
   concept_id_list: "data/clinvar_cpg_concept_ids.txt"
   conflict_resolution: "latest"
+  autogvp_script: "make.py"
   autogvp_url: "https://example.com/autogvp.tsv"  # Update with actual URL
 
 # FTP URLs for ClinVar data
