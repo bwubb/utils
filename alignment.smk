@@ -1,4 +1,5 @@
 import os
+import sys
 import yaml
 
 # Create log directories
@@ -17,20 +18,60 @@ def map_input(wildcards):
     return sorted(inputs)
 
 def get_fastqs(wildcards):
-    return {'R1':'FASTQ/'+FILES[wildcards.sample][f'{wildcards.run}-{wildcards.lane}']['files'][0],'R2':'FASTQ/'+FILES[wildcards.sample][f'{wildcards.run}-{wildcards.lane}']['files'][1]}
-    #fastq.yaml does not currently include file paths.
+    key=f'{wildcards.run}-{wildcards.lane}-{wildcards.index}'
+    entry=FILES[wildcards.sample][key]
+    r1,r2=entry['files'][0],entry['files'][1]
+    def p(x):
+        return x if x.startswith('FASTQ') or x.startswith('/') else 'FASTQ/'+x
+    return {'R1':p(r1),'R2':p(r2)}
 
 ### ### PYTHON ### ###
 
 with open(config['project']['fastq_config']) as file:
     FILES=yaml.load(file,Loader=yaml.BaseLoader)
-    #SAMPLES=sorted(list(FILES.keys()))
+    for sample in list(FILES.keys()):
+        val=FILES[sample]
+        flist=sorted(val['files'])
+        r1_by_base={}
+        r2_by_base={}
+        for f in flist:
+            base=os.path.basename(f)
+            if '_R1' in base:
+                base_stem=base.replace('_R1.fastq.gz','').replace('_R1.fq.gz','')
+                r1_by_base[base_stem]=f
+            elif '_R2' in base:
+                base_stem=base.replace('_R2.fastq.gz','').replace('_R2.fq.gz','')
+                r2_by_base[base_stem]=f
+        paired=[]
+        for base_stem in sorted(set(r1_by_base)|set(r2_by_base)):
+            r1=r1_by_base.get(base_stem)
+            r2=r2_by_base.get(base_stem)
+            if r1 is None:
+                print(f"WARNING: unpaired R2 (no R1): {r2}",file=sys.stderr)
+                continue
+            if r2 is None:
+                print(f"WARNING: unpaired R1 (no R2): {r1}",file=sys.stderr)
+                continue
+            paired.append((base_stem,r1,r2))
+        if not paired:
+            print(f"WARNING: no paired FASTQs for sample {sample}, skipping",file=sys.stderr)
+            continue
+        new_val={}
+        for base_stem,r1,r2 in paired:
+            parts=base_stem.split('_')
+            run,lane,index=(parts[-3],parts[-2],parts[-1]) if len(parts)>=3 else ('run','0','0')
+            key=f'{run}-{lane}-{index}'
+            new_val[key]={'PU':f'{run}-{lane}-{index}','files':[r1,r2]}
+        FILES[sample]=new_val
 
-#This allows me to subset the sample list easier.
 with open(config['project']['sample_list']) as file:
     SAMPLES=file.read().splitlines()
-    for sample in SAMPLES:
-            os.makedirs(f'logs/cluster/{sample}',exist_ok=True)
+for sample in SAMPLES:
+    if sample not in FILES:
+        print(f"WARNING: sample {sample} in sample.list not in fastq config, skipping",file=sys.stderr)
+SAMPLES=[s for s in SAMPLES if s in FILES]
+for sample in SAMPLES:
+    os.makedirs(f'logs/cluster/{sample}',exist_ok=True)
 
 ### ### ### RULES ### ### ###
 
@@ -114,14 +155,10 @@ rule ValidateSamFile:
     shell:
         """
         set +e
-        exitcode=$?
         java -Xmx{params.memory} -jar $HOME/software/picard/2.20.7/picard.jar ValidateSamFile I={input} O={output} MODE=SUMMARY
-        if [ $exitcode -eq 1 ]
-        then
-            exit 1
-        else
-            exit 0
-        fi
+        exitcode=$?
+        if [ $exitcode -ne 0 ]; then exit 1; fi
+        exit 0
         """
         #Is this also in GATK? Then I could drop picard from this pipeline.
 
