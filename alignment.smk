@@ -91,12 +91,15 @@ rule bwa_mem:
     output:
         temp("bam_input/work/{sample}/{reference}/{run}/{lane}/{index}/1.mapped.bam"),
     params:
-        fasta=config['reference']['fasta']
+        fasta=config['reference']['fasta'],
+        outdir="bam_input/work/{sample}/{reference}/{run}/{lane}/{index}"
     threads:
         4
     shell:
-        #fastq config has no path.
+        #I started having weird errors that it couldnt find the file,
+        #Like it wasnt making the output directory.
         """
+        mkdir -p {params.outdir}
         bwa mem -M -t {threads} {params.fasta} {input.R1} {input.R2} | samtools view -bS -o {output}
         """
 

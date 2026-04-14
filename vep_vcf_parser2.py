@@ -234,6 +234,11 @@ class MaveDBAnnot:
         for field,csq_key in fields:
             self.fields[field]=CSQ.get(csq_key,'.')
 
+class MANEAnnot:
+    def mane(self,CSQ):
+        self.fields['MANE.Select']=CSQ.get('MANE_SELECT','.')
+        self.fields['MANE.PlusClinical']=CSQ.get('MANE_PLUS_CLINICAL','.')
+
 class BasicInfoAnnot:
     def info(self,CSQ):
         fields=[
@@ -349,7 +354,7 @@ class LofLevelAnnot:
         #I can make a simple lookup table
 
 
-class VEPannotation(BasicInfoAnnot,GnomadAnnot,ClinvarAnnot,SpliceAIAnnot,
+class VEPannotation(BasicInfoAnnot,MANEAnnot,GnomadAnnot,ClinvarAnnot,SpliceAIAnnot,
                    PredictionAnnot,AlphaMissenseAnnot,MaveDBAnnot,
                    SampleAnnot,TumorNormalAnnot,LofLevelAnnot):
     """
@@ -367,6 +372,7 @@ class VEPannotation(BasicInfoAnnot,GnomadAnnot,ClinvarAnnot,SpliceAIAnnot,
         call_count (int): Number of calls processed
     """
     def __init__(self,record,vcf_reader,tumor_normal=False,tumor_id=None,no_sample=False,single_sample=None):
+        self.no_sample=no_sample
         self.fields=defaultdict(str)
         # vcfpy: use uppercase attributes
         self.fields['Chr']=f"{record.CHROM}"
@@ -473,11 +479,13 @@ class VEPannotation(BasicInfoAnnot,GnomadAnnot,ClinvarAnnot,SpliceAIAnnot,
         return ','.join([self.fields[h] for h in header])
 
     def report(self,writer):
-        if len(self.calls)>0:
-            for o in self.calls:
-                writer.writerow({**self.fields,**o})
-        else:
+        # no_sample: one variant row only (no GT / sample columns in header)
+        if self.no_sample:
             writer.writerow({**self.fields})
+            return
+        # cohort / single / tumor_normal: one row per retained call only; empty calls => write nothing
+        for o in self.calls:
+            writer.writerow({**self.fields,**o})
 
 #END CLASS
 
@@ -491,7 +499,8 @@ def report_header(tumor_normal=False,no_caller=False):
     # Core annotation headers
     header+=['Gene','Gene.Accession','Variant.LoF_level','Variant.Category','Variant.Class','Variant.Consequence',
             'HGVSc','HGVSp','Feature.Type','Feature.Accession','Bio.type','Existing.variation',
-            'EXON','INTRON','STRAND','cDNA.position','CDS.position','Protein.position','Amino.acids','Codons']
+            'EXON','INTRON','STRAND','cDNA.position','CDS.position','Protein.position','Amino.acids','Codons',
+            'MANE.Select','MANE.PlusClinical']
 
     # All additional annotations
     header+=['SpliceAI.DS_AG','SpliceAI.DS_AL','SpliceAI.DS_DG','SpliceAI.DS_DL',  # SpliceAI

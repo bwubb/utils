@@ -1,284 +1,435 @@
-import pysam
+#!/usr/bin/env python3
+"""
+Check whether two SNVs fall on the same reads using samtools view + SAM parsing only
+(no pysam — avoids OpenSSL/FIPS issues on some clusters).
+"""
 import argparse
 import csv
+import os
+import re
+import subprocess
 import sys
-from collections import defaultdict
 
-def parse_cigar_get_query_pos(cigar,ref_pos,read_start):
-    """
-    Parse CIGAR string to find query sequence position for a given reference position.
-    
-    Args:
-        cigar: pysam CIGAR tuple
-        ref_pos: Reference position (1-based)
-        read_start: Read start position on reference (0-based)
-    
-    Returns:
-        tuple: (query_pos: int or None, base_qual: int or None)
-        query_pos is 0-based index into query sequence
-    """
-    if not cigar:
-        return (None,None)
-    
-    ref_offset=ref_pos-1-read_start  # Convert to 0-based offset from read start
-    query_pos=0
-    
-    for op,length in cigar:
-        if op==0:  # M (match)
-            if ref_offset<length:
-                return (query_pos+ref_offset,None)
-            query_pos+=length
-            ref_offset-=length
-        elif op==1:  # I (insertion)
-            query_pos+=length
-        elif op==2:  # D (deletion)
-            if ref_offset<length:
-                return (None,None)  # Position is in deletion
-            ref_offset-=length
-        elif op==3:  # N (skip)
-            if ref_offset<length:
-                return (None,None)  # Position is in skipped region
-            ref_offset-=length
-        elif op==4:  # S (soft clip)
-            query_pos+=length
-        elif op==5:  # H (hard clip)
-            pass  # Doesn't consume query
-        elif op==6:  # P (padding)
-            pass
-        elif op==7:  # = (match)
-            if ref_offset<length:
-                return (query_pos+ref_offset,None)
-            query_pos+=length
-            ref_offset-=length
-        elif op==8:  # X (mismatch)
-            if ref_offset<length:
-                return (query_pos+ref_offset,None)
-            query_pos+=length
-            ref_offset-=length
-        
-        if ref_offset<0:
-            break
-    
-    return (None,None)
+# SAM FLAG bits
+FLAG_UNMAP = 0x4
+FLAG_SECONDARY = 0x100
+FLAG_SUPPLEMENTARY = 0x800
 
-def check_read_for_snvs(read,pos1,ref1,alt1,pos2,ref2,alt2):
-    """
-    Check if a read contains both SNVs at the expected positions.
-    
-    Args:
-        read: pysam AlignedSegment
-        pos1: First SNV position (1-based)
-        ref1: Reference allele for SNV1
-        alt1: Alternate allele for SNV1
-        pos2: Second SNV position (1-based)
-        ref2: Reference allele for SNV2
-        alt2: Alternate allele for SNV2
-    
-    Returns:
-        tuple: (has_snv1: bool, has_snv2: bool, snv1_base: str, snv2_base: str)
-    """
-    if not read.query_sequence:
-        return (False,False,None,None)
-    
-    # Get query positions for both SNVs
-    query_pos1,_=parse_cigar_get_query_pos(read.cigartuples,pos1,read.reference_start)
-    query_pos2,_=parse_cigar_get_query_pos(read.cigartuples,pos2,read.reference_start)
-    
-    has_snv1=False
-    has_snv2=False
-    base1=None
-    base2=None
-    
-    if query_pos1 is not None and query_pos1<len(read.query_sequence):
-        base1=read.query_sequence[query_pos1].upper()
-        if base1==alt1.upper():
-            has_snv1=True
-    
-    if query_pos2 is not None and query_pos2<len(read.query_sequence):
-        base2=read.query_sequence[query_pos2].upper()
-        if base2==alt2.upper():
-            has_snv2=True
-    
-    return (has_snv1,has_snv2,base1,base2)
 
-def check_mnp_in_bam(bam_path,chr,pos1,ref1,alt1,pos2,ref2,alt2,min_mapq=0):
-    """
-    Check if two SNVs appear on the same reads in a BAM file.
-    
-    Args:
-        bam_path: Path to BAM file
-        chr: Chromosome name
-        pos1: First SNV position (1-based)
-        ref1: Reference allele for SNV1
-        alt1: Alternate allele for SNV1
-        pos2: Second SNV position (1-based)
-        ref2: Reference allele for SNV2
-        alt2: Alternate allele for SNV2
-        min_mapq: Minimum mapping quality (default 0)
-    
-    Returns:
-        dict: Statistics about read support
-    """
-    bam=pysam.AlignmentFile(bam_path,'rb')
-    
-    # Determine region to fetch (overlap both positions)
-    start_pos=min(pos1,pos2)-1  # pysam uses 0-based, half-open
-    end_pos=max(pos1,pos2)+1
-    
-    reads_with_snv1=0
-    reads_with_snv2=0
-    reads_with_both=0
-    reads_with_neither=0
-    total_reads=0
-    
-    read_details=[]
-    
+def parse_variant_id(vid):
+    """VCF-style ID: chr22_15528747_G_A -> (chrom, pos, ref, alt)."""
+    if not vid or not str(vid).strip():
+        return None
+    parts = str(vid).strip().split("_")
+    if len(parts) < 4:
+        return None
     try:
-        for read in bam.fetch(chr,start_pos,end_pos):
-            if read.mapping_quality<min_mapq:
+        chrom = parts[0]
+        pos = int(parts[1])
+        if len(parts) == 4:
+            ref, alt = parts[2], parts[3]
+        else:
+            ref = "_".join(parts[2:-1])
+            alt = parts[-1]
+        return chrom, pos, ref, alt
+    except (ValueError, IndexError):
+        return None
+
+
+def load_bam_table(path):
+    """sample<TAB>bam_or_cram_path per line."""
+    bams = {}
+    with open(path, "r") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
                 continue
-            
-            total_reads+=1
-            has_snv1,has_snv2,base1,base2=check_read_for_snvs(read,pos1,ref1,alt1,pos2,ref2,alt2)
-            
-            if has_snv1:
-                reads_with_snv1+=1
-            if has_snv2:
-                reads_with_snv2+=1
-            if has_snv1 and has_snv2:
-                reads_with_both+=1
-            if not has_snv1 and not has_snv2:
-                reads_with_neither+=1
-            
-            read_details.append({
-                'read_name':read.query_name,
-                'has_snv1':has_snv1,
-                'has_snv2':has_snv2,
-                'base1':base1,
-                'base2':base2,
-                'mapq':read.mapping_quality
-            })
+            toks = line.split("\t")
+            if len(toks) >= 2:
+                bams[toks[0].strip()] = toks[1].strip()
+    return bams
+
+
+def parse_cigar_string(cigar_str):
+    """Return list of (length, op_char) for CIGAR; empty if missing or '*'."""
+    if not cigar_str or cigar_str == "*":
+        return []
+    return [(int(m.group(1)), m.group(2)) for m in re.finditer(r"(\d+)([MIDNSHP=X])", cigar_str)]
+
+
+def parse_cigar_get_query_pos(cigar_ops, ref_pos_1based, read_start_0based):
+    """
+    Map 1-based reference position to 0-based index into query SEQ.
+    cigar_ops: list of (length, op_char) from parse_cigar_string.
+    """
+    if not cigar_ops:
+        return (None, None)
+    ref_offset = ref_pos_1based - 1 - read_start_0based
+    if ref_offset < 0:
+        # Target position lies before this read's aligned start.
+        return (None, None)
+    query_pos = 0
+    for length, op in cigar_ops:
+        if op in "M=X":
+            if ref_offset < length:
+                return (query_pos + ref_offset, None)
+            query_pos += length
+            ref_offset -= length
+        elif op == "I":
+            query_pos += length
+        elif op in "DN":
+            if ref_offset < length:
+                return (None, None)
+            ref_offset -= length
+        elif op == "S":
+            query_pos += length
+        elif op == "H":
+            pass
+        elif op == "P":
+            pass
+        if ref_offset < 0:
+            break
+    return (None, None)
+
+
+def _read_skip_flag(flag_int):
+    return bool(flag_int & (FLAG_UNMAP | FLAG_SECONDARY | FLAG_SUPPLEMENTARY))
+
+
+def check_read_for_snvs(seq, cigar_ops, read_start_0based, pos1, alt1, pos2, alt2):
+    """SNV-oriented: compare single query base to expected alt (first char if multi)."""
+    if not seq or seq == "*":
+        return (False, False, None, None)
+    a1 = (alt1 or "").strip().upper()[:1]
+    a2 = (alt2 or "").strip().upper()[:1]
+    if not a1 or not a2:
+        return (False, False, None, None)
+    q1, _ = parse_cigar_get_query_pos(cigar_ops, pos1, read_start_0based)
+    q2, _ = parse_cigar_get_query_pos(cigar_ops, pos2, read_start_0based)
+    has1 = has2 = False
+    b1 = b2 = None
+    if q1 is not None and 0 <= q1 < len(seq):
+        b1 = seq[q1].upper()
+        has1 = b1 == a1
+    if q2 is not None and 0 <= q2 < len(seq):
+        b2 = seq[q2].upper()
+        has2 = b2 == a2
+    return (has1, has2, b1, b2)
+
+
+def iter_samtools_view(aln_path, region, min_mapq=0, reference_fasta=None):
+    """
+    Yield SAM alignment lines (not headers) from: samtools view [-q] [-T ref] aln region
+    """
+    cmd = ["samtools", "view"]
+    if min_mapq > 0:
+        cmd.extend(["-q", str(min_mapq)])
+    if reference_fasta:
+        cmd.extend(["-T", reference_fasta])
+    cmd.extend([aln_path, region])
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    try:
+        for line in proc.stdout:
+            line = line.rstrip("\n")
+            if not line or line.startswith("@"):
+                continue
+            yield line
     finally:
-        bam.close()
-    
+        proc.stdout.close()
+        err = proc.stderr.read()
+        code = proc.wait()
+        if code != 0:
+            raise RuntimeError(f"samtools view failed (exit {code}): {err.strip() or cmd}")
+
+
+def check_mnp_in_alignment(
+    aln_path, chrom, pos1, ref1, alt1, pos2, ref2, alt2, min_mapq=0, reference_fasta=None
+):
+    """
+    Stream overlapping reads with samtools view; count same-read support for both alts.
+    ref1/ref2 are not used for base checks (alt alleles only); kept for API compatibility.
+    """
+    lo = min(pos1, pos2)
+    hi = max(pos1, pos2)
+    region = f"{chrom}:{max(1, lo - 1)}-{hi + 1}"
+
+    reads_with_snv1 = reads_with_snv2 = reads_with_both = reads_with_neither = total_reads = 0
+    read_details = []
+
+    for line in iter_samtools_view(aln_path, region, min_mapq=min_mapq, reference_fasta=reference_fasta):
+        fields = line.split("\t")
+        if len(fields) < 11:
+            continue
+        qname, flag_s, rname, pos_s, mapq_s, cigar_s = (
+            fields[0],
+            fields[1],
+            fields[2],
+            fields[3],
+            fields[4],
+            fields[5],
+        )
+        try:
+            flag = int(flag_s)
+            mapq = int(mapq_s)
+            pos_1based = int(pos_s)
+        except ValueError:
+            continue
+        if _read_skip_flag(flag):
+            continue
+        if rname != chrom:
+            continue
+        # MAPQ filter: samtools -q when min_mapq > 0
+
+        read_start_0 = pos_1based - 1
+        cigar_ops = parse_cigar_string(cigar_s)
+        seq = fields[9]
+
+        total_reads += 1
+        has_snv1, has_snv2, base1, base2 = check_read_for_snvs(
+            seq, cigar_ops, read_start_0, pos1, alt1, pos2, alt2
+        )
+        if has_snv1:
+            reads_with_snv1 += 1
+        if has_snv2:
+            reads_with_snv2 += 1
+        if has_snv1 and has_snv2:
+            reads_with_both += 1
+        if not has_snv1 and not has_snv2:
+            reads_with_neither += 1
+        read_details.append(
+            {
+                "read_name": qname,
+                "has_snv1": has_snv1,
+                "has_snv2": has_snv2,
+                "base1": base1,
+                "base2": base2,
+                "mapq": mapq,
+            }
+        )
+
     return {
-        'total_reads':total_reads,
-        'reads_with_snv1':reads_with_snv1,
-        'reads_with_snv2':reads_with_snv2,
-        'reads_with_both':reads_with_both,
-        'reads_with_neither':reads_with_neither,
-        'cis_evidence':reads_with_both,
-        'trans_evidence':reads_with_snv1+reads_with_snv2-2*reads_with_both,
-        'read_details':read_details
+        "total_reads": total_reads,
+        "reads_with_snv1": reads_with_snv1,
+        "reads_with_snv2": reads_with_snv2,
+        "reads_with_both": reads_with_both,
+        "reads_with_neither": reads_with_neither,
+        "cis_evidence": reads_with_both,
+        "trans_evidence": reads_with_snv1 + reads_with_snv2 - 2 * reads_with_both,
+        "read_details": read_details,
     }
 
-def process_mnp_pairs(mnp_csv,bam_path,output_csv,min_mapq=0):
-    """
-    Process MNP pairs from CSV and check read support in BAM.
-    
-    Args:
-        mnp_csv: CSV file with MNP pairs from find_mnp_variants.py
-        bam_path: Path to BAM file
-        output_csv: Output CSV with read support information
-        min_mapq: Minimum mapping quality
-    """
-    mnp_pairs=[]
-    
-    # Read MNP pairs from CSV
-    with open(mnp_csv,'r') as infile:
-        reader=csv.DictReader(infile)
-        current_pair=None
-        var1=None
-        var2=None
-        
+
+def process_mnp_pairs(mnp_csv, aln_path, output_csv, min_mapq=0, reference_fasta=None):
+    mnp_pairs = []
+    with open(mnp_csv, "r") as infile:
+        reader = csv.DictReader(infile)
+        var1 = None
         for row in reader:
-            # Group pairs (they should be consecutive rows)
             if var1 is None:
-                var1=row
+                var1 = row
             else:
-                var2=row
-                # Check if this is a pair (same sample, same gene, etc.)
-                if (var1.get('Chr')==var2.get('Chr') and
-                    var1.get('Sample.ID')==var2.get('Sample.ID') or
-                    var1.get('Tumor.ID')==var2.get('Tumor.ID')):
-                    mnp_pairs.append((var1,var2))
-                var1=var2
-                var2=None
-    
-    # Process each pair
-    results=[]
-    for i,(var1,var2) in enumerate(mnp_pairs):
-        chr=var1.get('Chr','')
-        pos1=int(var1.get('Start',0))
-        ref1=var1.get('REF','')
-        alt1=var1.get('ALT','')
-        pos2=int(var2.get('Start',0))
-        ref2=var2.get('REF','')
-        alt2=var2.get('ALT','')
-        
-        print(f"Processing pair {i+1}/{len(mnp_pairs)}: {chr}:{pos1} {ref1}>{alt1} and {chr}:{pos2} {ref2}>{alt2}",file=sys.stderr)
-        
-        stats=check_mnp_in_bam(bam_path,chr,pos1,ref1,alt1,pos2,ref2,alt2,min_mapq)
-        
-        result={
-            'Chr':chr,
-            'Pos1':pos1,
-            'Ref1':ref1,
-            'Alt1':alt1,
-            'Pos2':pos2,
-            'Ref2':ref2,
-            'Alt2':alt2,
-            'Total_Reads':stats['total_reads'],
-            'Reads_with_SNV1':stats['reads_with_snv1'],
-            'Reads_with_SNV2':stats['reads_with_snv2'],
-            'Reads_with_Both':stats['reads_with_both'],
-            'Reads_with_Neither':stats['reads_with_neither'],
-            'Cis_Evidence':stats['cis_evidence'],
-            'Trans_Evidence':stats['trans_evidence'],
-            'Cis_Ratio':f"{stats['reads_with_both']/max(stats['total_reads'],1):.3f}" if stats['total_reads']>0 else '0.000'
+                var2 = row
+                if var1.get("Chr") == var2.get("Chr") and (
+                    var1.get("Sample.ID") == var2.get("Sample.ID")
+                    or var1.get("Tumor.ID") == var2.get("Tumor.ID")
+                ):
+                    mnp_pairs.append((var1, var2))
+                var1 = var2
+                var2 = None
+
+    results = []
+    for i, (var1, var2) in enumerate(mnp_pairs):
+        c = var1.get("Chr", "")
+        p1 = int(var1.get("Start", 0))
+        ref1 = var1.get("REF", "")
+        alt1 = var1.get("ALT", "")
+        p2 = int(var2.get("Start", 0))
+        ref2 = var2.get("REF", "")
+        alt2 = var2.get("ALT", "")
+        print(
+            f"Processing pair {i+1}/{len(mnp_pairs)}: {c}:{p1} {ref1}>{alt1} and {c}:{p2} {ref2}>{alt2}",
+            file=sys.stderr,
+        )
+        stats = check_mnp_in_alignment(
+            aln_path, c, p1, ref1, alt1, p2, ref2, alt2, min_mapq, reference_fasta
+        )
+        result = {
+            "Chr": c,
+            "Pos1": p1,
+            "Ref1": ref1,
+            "Alt1": alt1,
+            "Pos2": p2,
+            "Ref2": ref2,
+            "Alt2": alt2,
+            "Total_Reads": stats["total_reads"],
+            "Reads_with_SNV1": stats["reads_with_snv1"],
+            "Reads_with_SNV2": stats["reads_with_snv2"],
+            "Reads_with_Both": stats["reads_with_both"],
+            "Reads_with_Neither": stats["reads_with_neither"],
+            "Cis_Evidence": stats["cis_evidence"],
+            "Trans_Evidence": stats["trans_evidence"],
+            "Cis_Ratio": f"{stats['reads_with_both']/max(stats['total_reads'],1):.3f}"
+            if stats["total_reads"] > 0
+            else "0.000",
         }
-        
-        # Add original variant info
-        for key in ['Gene','Sample.ID','Tumor.ID','HGVSc','HGVSp']:
+        for key in ["Gene", "Sample.ID", "Tumor.ID", "HGVSc", "HGVSp"]:
             if key in var1:
-                result[f'Var1_{key}']=var1.get(key,'.')
+                result[f"Var1_{key}"] = var1.get(key, ".")
             if key in var2:
-                result[f'Var2_{key}']=var2.get(key,'.')
-        
+                result[f"Var2_{key}"] = var2.get(key, ".")
         results.append(result)
-    
-    # Write output
+
+    _write_results_csv(results, output_csv)
+
+
+def _write_results_csv(results, output_csv):
     if output_csv:
-        outfile=open(output_csv,'w')
+        outfile = open(output_csv, "w", newline="")
     else:
-        outfile=sys.stdout
-    
+        outfile = sys.stdout
     if results:
-        fieldnames=results[0].keys()
-        writer=csv.DictWriter(outfile,fieldnames=fieldnames,delimiter=',',
-                             restval='.',extrasaction='ignore',quoting=csv.QUOTE_NONNUMERIC,
-                             dialect='excel')
+        fieldnames = list(results[0].keys())
+        writer = csv.DictWriter(
+            outfile,
+            fieldnames=fieldnames,
+            delimiter=",",
+            restval=".",
+            extrasaction="ignore",
+            quoting=csv.QUOTE_NONNUMERIC,
+            dialect="excel",
+        )
         writer.writeheader()
         for result in results:
             writer.writerow(result)
-    
     if output_csv:
         outfile.close()
-        print(f"Processed {len(results)} MNP pairs",file=sys.stderr)
-        print(f"Output written to {output_csv}",file=sys.stderr)
+        print(f"Processed {len(results)} MNP pairs -> {output_csv}", file=sys.stderr)
     else:
-        print(f"Processed {len(results)} MNP pairs",file=sys.stderr)
+        print(f"Processed {len(results)} MNP pairs", file=sys.stderr)
+
+
+def process_targets_tsv(targets_tsv, bam_table, output_csv, min_mapq=0, reference_fasta=None):
+    """
+    Tabular per-sample targets: requires columns id1, id2, sample (VCF-style IDs for the two SNVs).
+    Optional mnp_id or pair_id (label in output). Optional VAF/GT columns echoed if present.
+    Input is typically from choose_mnp_read_check_samples.py (mnp_id, sample, id1, id2) or legacy
+    full PASS from test_mnp_sample_info.py.
+    """
+    bams = load_bam_table(bam_table)
+    results = []
+    skipped = 0
+    with open(targets_tsv, "r", newline="") as infile:
+        reader = csv.DictReader(infile, delimiter="\t")
+        for row in reader:
+            id1 = (row.get("id1") or "").strip()
+            id2 = (row.get("id2") or "").strip()
+            sample = (row.get("sample") or "").strip()
+            if not id1 or not id2 or not sample:
+                skipped += 1
+                continue
+            p1, p2 = parse_variant_id(id1), parse_variant_id(id2)
+            if not p1 or not p2:
+                print(f"Skip unparseable id: {id1!r} {id2!r}", file=sys.stderr)
+                skipped += 1
+                continue
+            chr1, pos1, ref1, alt1 = p1
+            chr2, pos2, ref2, alt2 = p2
+            if chr1 != chr2:
+                skipped += 1
+                continue
+            aln_path = bams.get(sample)
+            if not aln_path or not os.path.isfile(aln_path):
+                print(f"Skip sample {sample}: missing alignment path", file=sys.stderr)
+                skipped += 1
+                continue
+            stats = check_mnp_in_alignment(
+                aln_path, chr1, pos1, ref1, alt1, pos2, ref2, alt2, min_mapq, reference_fasta
+            )
+            row_label = (row.get("mnp_id") or row.get("pair_id") or ".").strip() or "."
+            results.append(
+                {
+                    "pair_id": row_label,
+                    "sample": sample,
+                    "id1": id1,
+                    "id2": id2,
+                    "Chr": chr1,
+                    "Pos1": pos1,
+                    "Ref1": ref1,
+                    "Alt1": alt1,
+                    "Pos2": pos2,
+                    "Ref2": ref2,
+                    "Alt2": alt2,
+                    "VAF1": row.get("VAF1", "."),
+                    "VAF2": row.get("VAF2", "."),
+                    "VAF_diff": row.get("VAF_diff", "."),
+                    "Cis_likely": row.get("Cis_likely", "."),
+                    "Total_Reads": stats["total_reads"],
+                    "Reads_with_SNV1": stats["reads_with_snv1"],
+                    "Reads_with_SNV2": stats["reads_with_snv2"],
+                    "Reads_with_Both": stats["reads_with_both"],
+                    "Reads_with_Neither": stats["reads_with_neither"],
+                    "Cis_Evidence": stats["cis_evidence"],
+                    "Trans_Evidence": stats["trans_evidence"],
+                    "Cis_Ratio": f"{stats['reads_with_both']/max(stats['total_reads'],1):.3f}"
+                    if stats["total_reads"] > 0
+                    else "0.000",
+                }
+            )
+    _write_results_csv(results, output_csv)
+    print(f"Targets read-check: {len(results)} rows, skipped {skipped}", file=sys.stderr)
+
 
 def main():
-    parser=argparse.ArgumentParser(description='Check if MNP pairs appear on same reads in BAM file')
-    parser.add_argument('-i','--mnp_csv',required=True,help='CSV file with MNP pairs from find_mnp_variants.py')
-    parser.add_argument('-b','--bam',required=True,help='BAM file to check')
-    parser.add_argument('-o','--output_csv',required=False,default=None,help='Output CSV with read support (default: stdout)')
-    parser.add_argument('-q','--min_mapq',type=int,default=0,help='Minimum mapping quality (default: 0)')
-    args=parser.parse_args()
-    
-    process_mnp_pairs(args.mnp_csv,args.bam,args.output_csv,args.min_mapq)
+    parser = argparse.ArgumentParser(
+        description="MNP same-read check via samtools view (no pysam). "
+        "Requires `samtools` on PATH."
+    )
+    parser.add_argument("-o", "--output_csv", default=None, help="Output CSV (default: stdout)")
+    parser.add_argument("-q", "--min_mapq", type=int, default=0, help="Minimum MAPQ (default: 0)")
+    parser.add_argument(
+        "-T",
+        "--reference",
+        dest="reference",
+        default=None,
+        help="Reference FASTA for CRAM decoding (-T passed to samtools view)",
+    )
+    src = parser.add_mutually_exclusive_group(required=True)
+    src.add_argument(
+        "--targets-tsv",
+        "--pass-tsv",
+        dest="targets_tsv",
+        default=None,
+        help="Per-sample targets TSV: mnp_id, sample, id1, id2 (choose_mnp_read_check_samples.py); "
+        "or legacy full PASS from test_mnp_sample_info.py (extra columns ignored).",
+    )
+    src.add_argument(
+        "-i",
+        "--mnp-csv",
+        dest="mnp_csv",
+        default=None,
+        help="MNP pair CSV from find_mnp_variants.py",
+    )
+    parser.add_argument("-b", "--bam", default=None, help="BAM/CRAM (with --mnp-csv only)")
+    parser.add_argument(
+        "-B",
+        "--bam-table",
+        dest="bam_table",
+        default=None,
+        help="sample<TAB>path (with --targets-tsv / --pass-tsv only)",
+    )
+    args = parser.parse_args()
 
-if __name__=='__main__':
+    if args.targets_tsv:
+        if not args.bam_table:
+            parser.error("--targets-tsv requires --bam-table")
+        process_targets_tsv(
+            args.targets_tsv, args.bam_table, args.output_csv, args.min_mapq, args.reference
+        )
+    else:
+        if not args.bam:
+            parser.error("--mnp-csv requires -b/--bam")
+        process_mnp_pairs(args.mnp_csv, args.bam, args.output_csv, args.min_mapq, args.reference)
+
+
+if __name__ == "__main__":
     main()
-

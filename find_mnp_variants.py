@@ -89,7 +89,7 @@ def are_alt_fracs_close(frac1,frac2,depth1=None,depth2=None,threshold=0.10,min_d
     else:
         return (False,diff,"Medium","Alt fractions differ (possibly trans)")
 
-def find_mnp_variants(input_csv,output_file,mode):
+def find_mnp_variants(input_csv,output_file,mode,regions_path=None,id_file_path=None):
     """Find variants affecting the same amino acid residue within 1-3 bases"""
     variant_groups=defaultdict(list)
     
@@ -160,7 +160,8 @@ def find_mnp_variants(input_csv,output_file,mode):
                 for j in range(i+1,len(variants)):
                     var1=variants[i]
                     var2=variants[j]
-                    
+                    if var1['row'].get('Chr')==var2['row'].get('Chr') and var1['row'].get('Start')==var2['row'].get('Start'):
+                        continue
                     # Check if cDNA positions are within 1-3 bases
                     distance=None
                     if var1['c_pos'] is not None and var2['c_pos'] is not None:
@@ -237,6 +238,41 @@ def find_mnp_variants(input_csv,output_file,mode):
         outfile=open(output_file,'w')
     else:
         outfile=sys.stdout
+
+    if output_file and mnp_pairs:
+        pairs_path=output_file.replace('.csv','')+'.pairs.txt'
+        with open(pairs_path,'w') as pf:
+            for pair in mnp_pairs:
+                id1=(pair['var1'].get('ID') or '').strip()
+                id2=(pair['var2'].get('ID') or '').strip()
+                if id1 and id2:
+                    pf.write(f"{id1}\t{id2}\n")
+        print(f"Pairs written to {pairs_path}",file=sys.stderr)
+
+    if regions_path or id_file_path:
+        positions=set()
+        ids=set()
+        for pair in mnp_pairs:
+            for var in (pair['var1'],pair['var2']):
+                chrom=(var.get('Chr') or '').strip()
+                start_s=(var.get('Start') or '').strip()
+                id_=(var.get('ID') or '').strip()
+                if chrom and start_s and id_:
+                    try:
+                        positions.add((chrom,int(start_s)))
+                        ids.add(id_)
+                    except ValueError:
+                        pass
+        if regions_path:
+            with open(regions_path,'w') as f:
+                for (chrom,pos) in sorted(positions):
+                    f.write(f"{chrom}\t{pos}\n")
+            print(f"Regions written to {regions_path}",file=sys.stderr)
+        if id_file_path:
+            with open(id_file_path,'w') as f:
+                for id_ in sorted(ids):
+                    f.write(f"{id_}\n")
+            print(f"IDs written to {id_file_path}",file=sys.stderr)
     
     writer=csv.DictWriter(outfile,fieldnames=output_columns,delimiter=',',
                          restval='.',extrasaction='ignore',quoting=csv.QUOTE_NONNUMERIC,
@@ -282,9 +318,11 @@ def main():
     parser.add_argument('-o','--output_csv',required=False,default=None,help='Output CSV file with MNP variant pairs (default: stdout)')
     parser.add_argument('-m','--mode',default='auto',choices=['auto','cohort','tumor_normal','no_sample'],
                        help='Input file mode: auto (detect), cohort, tumor_normal, or no_sample')
+    parser.add_argument('-r','--regions',default=None,help='Output regions file (chrom\\tpos per line)')
+    parser.add_argument('-I','--id-file',dest='id_file',default=None,help='Output ID file (one ID per line)')
     args=parser.parse_args()
-    
-    find_mnp_variants(args.input_csv,args.output_csv,args.mode)
+
+    find_mnp_variants(args.input_csv,args.output_csv,args.mode,regions_path=args.regions,id_file_path=args.id_file)
 
 if __name__=='__main__':
     main()
