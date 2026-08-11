@@ -117,6 +117,19 @@ def run_sample(sample,targets,ref='GRCh37',PDX=False):
     OUT_METRICS['SAMPLE']=sample
     return OUT_METRICS
 
+def metric_float(v,default=0.0):
+    try:
+        return float(v)
+    except (ValueError,TypeError):
+        return default
+
+def fails_ibd_qc(METRICS):
+    MED=metric_float(METRICS.get('MEDIAN_TARGET_COVERAGE'))
+    X20=metric_float(METRICS.get('PCT_TARGET_BASES_20X'))
+    PF=metric_float(METRICS.get('PF_HQ_ALIGNED_READS'))
+    ZC=metric_float(METRICS.get('ZERO_CVG_TARGETS_PCT'),default=1.0)
+    return MED<15 or X20<0.80 or PF<3000000 or ZC>0.10
+
 def format_outrow(OUT_METRICS):
     FINAL_METRICS={}
     for k,v in OUT_METRICS.items():
@@ -131,17 +144,27 @@ def format_outrow(OUT_METRICS):
             FINAL_METRICS[k]=str(v)
     return FINAL_METRICS
 
-def write_summary(SAMPLES,output_fp,targets,ref,PDX):
+def write_exclude_list(excluded,exclude_fp):
+    with open(exclude_fp,'w') as EFILE:
+        for sample in excluded:
+            EFILE.write(sample+'\n')
+
+def write_summary(SAMPLES,output_fp,targets,ref,PDX,exclude_fp=None):
     if PDX==True:
         header='SAMPLE BAIT_SET TOTAL_READS PCT_HUMAN PCT_MOUSE PCT_PF_READS PF_HQ_ALIGNED_READS PCT_READS_ALIGNED_IN_PAIRS PCT_DUP MEDIAN_INSERT_SIZE MODE_INSERT_SIZE MEAN_INSERT_SIZE PCT_SELECTED_BASES MEAN_TARGET_COVERAGE MEDIAN_TARGET_COVERAGE MAX_TARGET_COVERAGE PCT_USABLE_BASES_ON_TARGET ZERO_CVG_TARGETS_PCT PCT_TARGET_BASES_20X PCT_TARGET_BASES_100X'.split(' ')
     else:
         header='SAMPLE BAIT_SET TOTAL_READS PCT_PF_READS PF_HQ_ALIGNED_READS PCT_READS_ALIGNED_IN_PAIRS PCT_DUP MEDIAN_INSERT_SIZE MODE_INSERT_SIZE MEAN_INSERT_SIZE PCT_SELECTED_BASES MEAN_TARGET_COVERAGE MEDIAN_TARGET_COVERAGE MAX_TARGET_COVERAGE PCT_USABLE_BASES_ON_TARGET ZERO_CVG_TARGETS_PCT PCT_TARGET_BASES_20X PCT_TARGET_BASES_100X MEAN_BAIT_COVERAGE PCT_EXC_DUPE PCT_EXC_MAPQ PCT_EXC_BASEQ PCT_EXC_OVERLAP PCT_EXC_OFF_TARGET'.split(' ')
+    excluded=[]
     with open(output_fp,'w') as OFILE:
         writer=csv.DictWriter(OFILE,delimiter=',',fieldnames=header,restval='.',extrasaction='ignore')
         writer.writeheader()
         for sample in SAMPLES:
             SAMPLE_METRICS=format_outrow(run_sample(sample,targets,ref,PDX))
             writer.writerow(SAMPLE_METRICS)
+            if exclude_fp and fails_ibd_qc(SAMPLE_METRICS):
+                excluded.append(SAMPLE_METRICS['SAMPLE'])
+    if exclude_fp:
+        write_exclude_list(excluded,exclude_fp)
 
 def target_coverage_summary(SAMPLES,targets,out_fp):
     target_coverage=defaultdict(lambda: defaultdict(float))
@@ -166,6 +189,7 @@ def get_args(argv=None):
     p=argparse.ArgumentParser()
     p.add_argument('-I','--input_fp',default='samples.list',help='Sample list')
     p.add_argument('-O','--output_fp',default='metrics_summary.csv',help='Output metrics.csv')
+    p.add_argument('-X','--exclude_fp',default='exclude.list',help='Samples failing IBD/report QC')
     p.add_argument('-L','--targets',required=True,help='targets key')
     p.add_argument('-R','--ref',default='GRCh37',help='reference key')
     p.add_argument('--PDX',choices=['True','False'],default='False',help='PDX disambiguation from Mouse')
@@ -175,7 +199,7 @@ def main(argv=None):
     args=get_args(argv)
     with open(args.input_fp,'r') as file:
         SAMPLES=file.read().splitlines()
-    write_summary(SAMPLES,args.output_fp,args.targets,args.ref,args.PDX=='True')
+    write_summary(SAMPLES,args.output_fp,args.targets,args.ref,args.PDX=='True',args.exclude_fp)
 
 if __name__=='__main__':
     main()

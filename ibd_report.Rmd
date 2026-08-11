@@ -1,86 +1,369 @@
 ---
-title: "IBD Analysis Report"
+title: "IBD / relatedness report"
 date: "`r format(Sys.Date(), '%Y-%m-%d')`"
 output:
   html_document:
     toc: true
     toc_float: true
-    theme: united
-    highlight: tango
+    theme: flatly
+    df_print: paged
 params:
   genome_file: NULL
+  pair_table: NULL
+  sample_list: NULL
+  exclude_list: NULL
+  min_pi_hat: 0.1875
+  flag_pi_hat: 0.35
+  same_patient_pi_hat: 0.30
+  duplicate_pi_hat: 0.95
+  max_heatmap_samples: 100
+  show_heatmap: true
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+knitr::opts_chunk$set(echo=FALSE,warning=FALSE,message=FALSE)
 library(tidyverse)
 library(ggplot2)
-library(heatmaply)
-```
+library(DT)
+has_heatmaply<-requireNamespace("heatmaply",quietly=TRUE)
 
-## Load and Clean IBD Data
-
-```{r load}
-genome_data <- read.table(params$genome_file, header=TRUE, stringsAsFactors=FALSE)
-genome_data <- genome_data %>% 
-  filter(!is.na(PI_HAT), is.finite(PI_HAT), PI_HAT >= 0)
-
-# Summary of non-zero PI_HAT values
-pi_hat_summary <- genome_data %>%
-  filter(PI_HAT > 0) %>%
-  summarise(
-    min = min(PI_HAT),
-    max = max(PI_HAT),
-    mean = mean(PI_HAT)
-  )
-```
-
-## PI_HAT Distribution
-
-```{r dist}
-ggplot(genome_data, aes(x=PI_HAT)) +
-  geom_histogram(bins=50, fill="steelblue", alpha=0.7) +
-  theme_minimal() +
-  labs(title="PI_HAT Distribution", x="PI_HAT", y="Count")
-```
-
-## Top 50 Pairs by PI_HAT
-
-```{r top-pairs}
-top_pairs <- genome_data %>% arrange(desc(PI_HAT)) %>% head(50)
-top_pairs
-```
-
-## Heatmap of Top Sample Pairings
-
-```{r heatmap}
-top_samples <- genome_data %>% 
-  arrange(desc(PI_HAT)) %>% 
-  select(IID1, IID2) %>% 
-  slice(1:100) %>% 
-  pivot_longer(cols=c(IID1, IID2), values_to="sample") %>% 
-  pull(sample) %>% 
-  unique()
-
-ibd_subset <- genome_data %>% 
-  filter(IID1 %in% top_samples, IID2 %in% top_samples)
-
-sample_ids <- unique(c(ibd_subset$IID1, ibd_subset$IID2))
-mat <- matrix(NA, nrow=length(sample_ids), ncol=length(sample_ids), dimnames=list(sample_ids, sample_ids))
-
-for (i in seq_len(nrow(ibd_subset))) {
-  a <- ibd_subset$IID1[i]
-  b <- ibd_subset$IID2[i]
-  val <- ibd_subset$PI_HAT[i]
-  mat[a, b] <- val
-  mat[b, a] <- val
+resolve_path<-function(param_path,default_name){
+  if(!is.null(param_path)&&nzchar(param_path)&&file.exists(param_path))return(param_path)
+  if(file.exists(default_name))return(default_name)
+  NULL
 }
 
-heatmaply(
-  mat,
-  colors = c("white", "steelblue"),
-  xlab = "Sample", ylab = "Sample",
-  show_dendrogram = FALSE,
-  main = "Top Sample Pairwise IBD (PI_HAT)"
+pair_path<-resolve_path(params$pair_table,"pair.table")
+sample_path<-resolve_path(params$sample_list,"sample.list")
+exclude_path<-resolve_path(params$exclude_list,"exclude.list")
+
+htmltools::tagList(htmltools::tags$style(htmltools::HTML(
+".dataTables_wrapper table.dataTable td.dt-wrap{white-space:normal!important;word-break:break-word;font-size:0.88em;line-height:1.25;vertical-align:top}"
+)))
+
+ibd_dt<-function(x,pageLength=25){
+  wrap<-intersect(c("category","action"),names(x))
+  idx<-match(wrap,names(x))-1L
+  defs<-if(length(idx))lapply(idx,function(i)list(targets=i,className="dt-wrap"))else list()
+  datatable(x,rownames=FALSE,filter="top",
+    options=list(pageLength=pageLength,scrollX=TRUE,autoWidth=TRUE,columnDefs=defs),
+    class="compact stripe hover")
+}
+```
+
+PLINK `--genome` output (`PI_HAT` = proportion IBD).
+
+**Expected relatedness:** tumor vs its normal (from `pair.table` when present: two columns, **tumor** then **normal**, tab-separated; one normal may appear with many tumors). Without `pair.table`, same **patient prefix** (ID before the last `-`) is used as a fallback.
+
+**Review:** high `PI_HAT` between samples that are **not** a listed tumor/normal pair and **not** the same prefix.
+
+**Metrics exclusions:** if `exclude.list` exists (from `metrics.smk`), those samples are dropped from tables in this report only. The underlying PLINK / joint VCF run is unchanged.
+
+```{r meta}
+tn_pairs<-NULL
+pair_roles<-tibble(sample=character(),role=character())
+
+if(!is.null(pair_path)){
+  raw<-read.table(pair_path,sep="\t",header=FALSE,stringsAsFactors=FALSE,comment.char="#")
+  if(ncol(raw)<2)stop("pair.table needs at least two columns: tumor<TAB>normal")
+  if(ncol(raw)==2)colnames(raw)<-c("tumor","normal")
+  tn_pairs<-bind_rows(
+    raw%>%transmute(IID1=as.character(tumor),IID2=as.character(normal)),
+    raw%>%transmute(IID1=as.character(normal),IID2=as.character(tumor))
+  )
+  pair_roles<-bind_rows(
+    raw%>%transmute(sample=as.character(tumor),role="tumor"),
+    raw%>%transmute(sample=as.character(normal),role="normal")
+  )%>%distinct(sample,.keep_all=TRUE)
+}
+
+cohort<-NULL
+if(!is.null(sample_path)){
+  cohort<-readLines(sample_path,warn=FALSE)
+  cohort<-cohort[nzchar(trimws(cohort))]
+}
+
+excluded<-character()
+if(!is.null(exclude_path)){
+  excluded<-readLines(exclude_path,warn=FALSE)
+  excluded<-trimws(excluded)
+  excluded<-excluded[!grepl("^#",excluded) & nzchar(excluded)]
+}
+```
+
+```{r load}
+genome<-read.table(params$genome_file,header=TRUE,stringsAsFactors=FALSE,check.names=FALSE)
+if(!all(c("IID1","IID2","PI_HAT")%in%names(genome))){
+  stop("genome file must contain IID1, IID2, PI_HAT")
+}
+
+is_tn_pair<-function(i1,i2){
+  if(is.null(tn_pairs))return(FALSE)
+  any(tn_pairs$IID1==i1&tn_pairs$IID2==i2)
+}
+
+pairs<-genome %>%
+  filter(!is.na(PI_HAT),is.finite(PI_HAT),PI_HAT>=0,IID1!=IID2) %>%
+  {if(length(excluded))filter(.,!IID1%in%excluded,!IID2%in%excluded) else .} %>%
+  mutate(
+    patient1=sub("-[^-]+$","",IID1),
+    patient2=sub("-[^-]+$","",IID2),
+    same_patient=patient1==patient2,
+    tumor_normal_pair=map2_lgl(IID1,IID2,is_tn_pair),
+    PI_HAT=round(PI_HAT,4)
+  )
+
+related<-pairs %>%
+  filter(PI_HAT>=params$min_pi_hat) %>%
+  mutate(
+    category=case_when(
+      PI_HAT>=params$duplicate_pi_hat~"duplicate_or_near_identical",
+      tumor_normal_pair~"expected_tumor_normal",
+      same_patient&PI_HAT>=params$same_patient_pi_hat~"expected_same_patient_prefix",
+      !same_patient&!tumor_normal_pair&PI_HAT>=params$flag_pi_hat~"flag_high_ibd_different_patient",
+      !same_patient&!tumor_normal_pair~"review_moderate_ibd_different_patient",
+      TRUE~"other"
+    ),
+    action=case_when(
+      category=="duplicate_or_near_identical"~"Check dup/label",
+      category=="expected_tumor_normal"~"Expected T/N",
+      category=="expected_same_patient_prefix"~"Expected prefix",
+      category=="flag_high_ibd_different_patient"~"Review swap/IBD",
+      category=="review_moderate_ibd_different_patient"~"Review if odd",
+      TRUE~"—"
+    ),
+    category_label=recode(category,
+      duplicate_or_near_identical="Near duplicate",
+      expected_tumor_normal="Tumor/normal",
+      expected_same_patient_prefix="Same prefix",
+      flag_high_ibd_different_patient="High IBD, diff pt",
+      review_moderate_ibd_different_patient="Moderate IBD, diff pt",
+      other="Other",
+      .default=category
+    )
+  ) %>%
+  left_join(pair_roles%>%rename(role1=role),by=c("IID1"="sample")) %>%
+  left_join(pair_roles%>%rename(role2=role),by=c("IID2"="sample")) %>%
+  arrange(desc(PI_HAT),category,IID1,IID2)
+
+n_genome_samples<-length(unique(c(genome$IID1,genome$IID2)))
+n_samples<-length(unique(c(pairs$IID1,pairs$IID2)))
+has_pair_table<-!is.null(tn_pairs)
+```
+
+## Excluded samples (metrics QC)
+
+```{r excluded-intro, echo=FALSE}
+if(!is.null(exclude_path)){
+  cat("Using ", exclude_path, ".\n\n", sep="")
+}
+```
+
+Samples that failed metrics QC (`exclude.list`: median target &lt; 15×, &lt; 80% targets at 20×, PF HQ aligned reads &lt; 3M, or &gt; 10% targets at zero coverage). Omitted from pair tables in this report only.
+
+```{r excluded}
+if(length(excluded)==0){
+  if(is.null(exclude_path)){
+    cat("No exclude.list found; no metrics-based exclusions applied.\n")
+  }else{
+    cat("exclude.list is empty; all samples passed IBD QC thresholds.\n")
+  }
+}else{
+  ex_tbl<-tibble(sample=sort(excluded))
+  knitr::kable(ex_tbl,col.names="Excluded sample")
+}
+```
+
+## Summary
+
+```{r summary}
+summary_tbl<-related %>%
+  count(category_label,sort=TRUE,name="pairs") %>%
+  rename(category=category_label)
+
+meta_rows<-tibble(
+  metric=c(
+    "Samples in PLINK genome",
+    "Excluded (metrics QC)",
+    "Samples in this report",
+    "Cohort sample.list loaded",
+    "pair.table loaded",
+    "Pairs (all non-self)",
+    "Pairs reported (PI_HAT ≥ threshold)",
+    "Flagged (different subject, high IBD)"
+  ),
+  value=c(
+    as.character(n_genome_samples),
+    ifelse(length(excluded)==0,"none",paste(sort(excluded),collapse=", ")),
+    as.character(n_samples),
+    ifelse(is.null(cohort),"no",as.character(length(cohort))),
+    ifelse(has_pair_table,pair_path,"no (prefix fallback only)"),
+    as.character(nrow(pairs)),
+    as.character(nrow(related)),
+    as.character(sum(related$category=="flag_high_ibd_different_patient"))
+  )
 )
+
+knitr::kable(meta_rows,col.names=c("Metric","Value"))
+knitr::kable(summary_tbl,col.names=c("Category","Pair count"))
+```
+
+## Per-sample: worst unrelated sharing
+
+For each sample, **max PI_HAT** to another sample that is **not** a `pair.table` tumor/normal match and **not** the same prefix. Use this to spot a single worst partner per library.
+
+```{r per-sample}
+all_samples<-unique(c(pairs$IID1,pairs$IID2))
+if(!is.null(cohort))all_samples<-union(all_samples,cohort)
+
+unrelated_pairs<-pairs %>%
+  filter(!tumor_normal_pair,!same_patient,PI_HAT>0)
+
+per_sample<-bind_rows(
+  unrelated_pairs%>%transmute(sample=IID1,other=IID2,PI_HAT),
+  unrelated_pairs%>%transmute(sample=IID2,other=IID1,PI_HAT)
+) %>%
+  group_by(sample) %>%
+  slice_max(PI_HAT,n=1,with_ties=FALSE) %>%
+  ungroup() %>%
+  left_join(pair_roles,by="sample") %>%
+  rename(sample_role=role) %>%
+  arrange(desc(PI_HAT))
+
+if(nrow(per_sample)==0){
+  cat("No unrelated pairs with PI_HAT > 0.\n")
+}else{
+  ibd_dt(per_sample,pageLength=25)
+}
+```
+
+## Review: different subjects (high IBD)
+
+```{r flags}
+flags<-related %>% filter(category=="flag_high_ibd_different_patient")
+
+if(nrow(flags)==0){
+  cat("No pairs in this category.\n")
+}else{
+  ibd_dt(flags%>%select(IID1,IID2,role1,role2,patient1,patient2,PI_HAT,category=category_label,action))
+}
+```
+
+## Expected tumor / normal (`pair.table`)
+
+```{r tn}
+expected_tn<-related %>% filter(category=="expected_tumor_normal")
+
+if(!has_pair_table){
+  cat("No pair.table supplied; section empty. Add pair.table (tumor<TAB>normal) when tumor/normal calling is in use.\n")
+}else if(nrow(expected_tn)==0){
+  cat("No tumor/normal pairs above threshold (check pair.table IDs match sample IDs in PLINK).\n")
+}else{
+  ibd_dt(expected_tn%>%select(IID1,IID2,role1,role2,PI_HAT,category=category_label,action))
+}
+```
+
+## Expected: same prefix only (no `pair.table` row)
+
+```{r prefix}
+expected_px<-related %>% filter(category=="expected_same_patient_prefix")
+
+if(nrow(expected_px)==0){
+  cat("No same-prefix pairs above threshold.\n")
+}else{
+  ibd_dt(expected_px%>%select(IID1,IID2,patient1,patient2,PI_HAT,category=category_label,action))
+}
+```
+
+## Near-duplicate
+
+```{r duplicates}
+dups<-related %>% filter(category=="duplicate_or_near_identical")
+
+if(nrow(dups)==0){
+  cat("No near-duplicate pairs.\n")
+}else{
+  ibd_dt(dups%>%select(IID1,IID2,patient1,patient2,PI_HAT,category=category_label,action))
+}
+```
+
+## All reported pairs (filterable)
+
+```{r all-pairs}
+ibd_dt(
+  related%>%select(IID1,IID2,role1,role2,patient1,patient2,TN=tumor_normal_pair,same_prefix=same_patient,PI_HAT,category=category_label,action),
+  pageLength=50
+)
+```
+
+## PI_HAT distribution
+
+```{r dist}
+pairs %>%
+  filter(PI_HAT>0) %>%
+  ggplot(aes(x=PI_HAT))+
+  geom_histogram(bins=50,fill="steelblue",color="white")+
+  geom_vline(xintercept=params$min_pi_hat,linetype=2,color="gray40")+
+  geom_vline(xintercept=params$flag_pi_hat,linetype=2,color="firebrick")+
+  theme_minimal(base_size=12)+
+  labs(title="PI_HAT among sample pairs",x="PI_HAT",y="Count")
+```
+
+## Heatmap (subset)
+
+```{r heatmap, eval=params$show_heatmap && has_heatmaply}
+if(!params$show_heatmap){
+  cat("Heatmap disabled (show_heatmap=FALSE).\n")
+}else if(!has_heatmaply){
+  cat("Package heatmaply not available.\n")
+}else{
+  library(heatmaply)
+  heat_ids<-related %>%
+    filter(category%in%c("flag_high_ibd_different_patient","duplicate_or_near_identical")) %>%
+    arrange(desc(PI_HAT))
+  if(nrow(heat_ids)==0)heat_ids<-related%>%arrange(desc(PI_HAT))%>%head(50)
+
+  top_samples<-heat_ids %>%
+    select(IID1,IID2) %>%
+    pivot_longer(everything(),values_to="sample") %>%
+    distinct(sample) %>%
+    pull(sample)
+
+  if(length(top_samples)>params$max_heatmap_samples){
+    top_samples<-heat_ids %>%
+      pivot_longer(c(IID1,IID2),values_to="sample") %>%
+      group_by(sample) %>%
+      summarise(max_pi=max(PI_HAT),.groups="drop") %>%
+      arrange(desc(max_pi)) %>%
+      head(params$max_heatmap_samples) %>%
+      pull(sample)
+  }
+
+  ibd_sub<-pairs %>% filter(IID1%in%top_samples,IID2%in%top_samples)
+  mat<-matrix(NA_real_,length(top_samples),length(top_samples),dimnames=list(top_samples,top_samples))
+  for(i in seq_len(nrow(ibd_sub))){
+    a<-ibd_sub$IID1[i]
+    b<-ibd_sub$IID2[i]
+    v<-ibd_sub$PI_HAT[i]
+    mat[a,b]<-v
+    mat[b,a]<-v
+  }
+  diag(mat)<-0
+
+  heatmaply(
+    mat,
+    colors=colorRampPalette(c("white","#fee8c8","#e34a33"))(100),
+    xlab="Sample",ylab="Sample",
+    main=paste0("PI_HAT (",length(top_samples)," samples)"),
+    show_dendrogram=FALSE,
+    fontsize_row=max(6,min(10,220/length(top_samples))),
+    fontsize_col=max(6,min(10,220/length(top_samples))),
+    width=max(900,min(1400,40*length(top_samples))),
+    height=max(700,min(1200,40*length(top_samples)))
+  )
+}
+```
+
+```{r heatmap-off, eval=params$show_heatmap && !has_heatmaply}
+cat("Install heatmaply for subset heatmap, or set show_heatmap: false.\n")
 ```

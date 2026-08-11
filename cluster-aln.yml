@@ -30,28 +30,28 @@
 
 # Metrics rules
 'gatk_CollectAlignmentSummaryMetrics':
-    'M': '5120'  #5 GB (5 * 1024 = 5120 MB)
+    'M': '6144'  #6 GB job mem; -Xmx5g heap in metrics.smk
     'n': '1'
     'J': '{wildcards.sample}_{rule}'
     'oo': 'logs/cluster/metrics/{wildcards.sample}/{rule}.o'
     'eo': 'logs/cluster/metrics/{wildcards.sample}/{rule}.e'
-    'R': '"span[hosts=1] rusage[mem=5120]"'
+    'R': '"span[hosts=1] rusage[mem=6144]"'
 
 'gatk_CollectInsertSizeMetrics':
-    'M': '5120'  #5 GB (5 * 1024 = 5120 MB)
+    'M': '6144'  #6 GB job mem; -Xmx5g heap in metrics.smk
     'n': '1'
     'J': '{wildcards.sample}_{rule}'
     'oo': 'logs/cluster/metrics/{wildcards.sample}/{rule}.o'
     'eo': 'logs/cluster/metrics/{wildcards.sample}/{rule}.e'
-    'R': '"span[hosts=1] rusage[mem=5120]"'
+    'R': '"span[hosts=1] rusage[mem=6144]"'
 
 'gatk_CollectHsMetrics':
-    'M': '5120'  #5 GB (5 * 1024 = 5120 MB)
+    'M': '12288'  #12 GB job mem; -Xmx10g heap in metrics.smk
     'n': '1'
     'J': '{wildcards.sample}_{rule}'
     'oo': 'logs/cluster/metrics/{wildcards.sample}/{rule}.o'
     'eo': 'logs/cluster/metrics/{wildcards.sample}/{rule}.e'
-    'R': '"span[hosts=1] rusage[mem=5120]"'
+    'R': '"span[hosts=1] rusage[mem=12288]"'
 
 'samtools_flagstat':
     'M': '4096'  #4 GB (4 * 1024 = 4096 MB)

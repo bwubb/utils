@@ -1,5 +1,4 @@
 import os
-import yaml
 
 include: "common_snps.smk"
 include: "metrics.smk"
@@ -16,27 +15,35 @@ name=config['resources']['targets_key']
 ref=config['reference']['key']
 
 # Define chromosomes
-CHROMOSOMES=[f'chr{i}' for i in range(1,23)]+['chrX','chrY']
-
-def get_gvcf_variants():
-    """Return list of gVCF files for GATK CombineGVCFs --variant parameter"""
-    return [f"data/work/{sample}/gatk/common_snps.g.vcf.gz" for sample in SAMPLES]
+CHROMOSOMES=[f'chr{i}' for i in range(1,23)]
 
 localrules: make_sample_map,combine_gvcfs_all,genotype_gvcfs_all
 
+rule make_snps_intervals:
+    input:
+        snps=f"data/work/common_snps/{name}/gnomad.exomes.common_biallelic_snps.{ref}.vcf.gz"
+    output:
+        f"data/work/common_snps/{name}/snps.intervals"
+    shell:
+        """
+        bcftools query -f '%CHROM:%POS-%POS\n' {input.snps} | sort -V | uniq > {output}
+        """
+
 rule collect_ibd:
     input:
-        "data/work/IBD/ibd-related.txt"
+        "data/work/IBD2/ibd-related.txt"
 
 rule gatk_alleles:
     input:
         bam=lambda wildcards: BAMS[wildcards.sample],
-        intervals="data/work/common_snps/{name}/snps.intervals",
-        snp="data/work/common_snps/{name}/gnomad.exomes.common_biallelic_snps.{ref}.vcf.gz"
+        intervals=f"data/work/common_snps/{name}/snps.intervals",
+        snp=f"data/work/common_snps/{name}/gnomad.exomes.common_biallelic_snps.{ref}.vcf.gz"
     output:
         "data/work/gatk/{sample}/common_snps.g.vcf.gz"
     params:
         ref=config['reference']['fasta']
+    resources:
+        mem_mb=6144
     shell:
         """
         gatk --java-options '-Xmx5g' HaplotypeCaller \
@@ -53,29 +60,32 @@ rule gatk_alleles:
 
 rule make_sample_map:
     input:
-        expand("data/work/{sample}/gatk/common_snps.g.vcf.gz",sample=SAMPLES)
+        expand("data/work/gatk/{sample}/common_snps.g.vcf.gz",sample=SAMPLES)
     output:
         "data/work/IBD2/sample_map.txt"
     run:
         with open(output[0],"w") as f:
             for sample in SAMPLES:
-                f.write(f"{sample}\tdata/work/{sample}/gatk/common_snps.g.vcf.gz\n")
+                f.write(f"{sample}\tdata/work/gatk/{sample}/common_snps.g.vcf.gz\n")
 
 #I think the query makes the small intervals file, then the variant arguments are the gvcfs
 #at no point have we actually subset anything to chromosome level.
 rule combine_gvcfs_chr:
     input:
-        gvcfs=expand("data/work/{sample}/gatk/common_snps.g.vcf.gz",sample=SAMPLES),
+        gvcfs=expand("data/work/gatk/{sample}/common_snps.g.vcf.gz",sample=SAMPLES),
         snps=f"data/work/common_snps/{name}/gnomad.exomes.common_biallelic_snps.{ref}.vcf.gz"
     output:
         "data/work/IBD2/combined.{chr}.g.vcf.gz"
     params:
         ref=config['reference']['fasta'],
-        chr="{chr}"
+        chr="{chr}",
+        chr_alt=lambda wildcards: wildcards.chr[3:] if wildcards.chr.startswith('chr') else wildcards.chr
+    resources:
+        mem_mb=16384
     shell:
         """
-        # Extract chromosome intervals from SNP file
-        bcftools query -f '%CHROM:%POS-%POS\n' {input.snps} | grep ^{params.chr}: > {params.chr}.intervals
+        # SNP VCF may use chr11: or 11: in CHROM; anchor on ':' so chr1 does not match chr11
+        bcftools query -f '%CHROM:%POS-%POS\n' {input.snps} | egrep "^({params.chr}|{params.chr_alt}):" > {params.chr}.intervals
         
         # Generate variant arguments
         variant_args=""
@@ -105,6 +115,8 @@ rule genotype_gvcfs_chr:
         "data/work/IBD2/joint.{chr}.snp_genotypes.vcf.gz"
     params:
         ref=config['reference']['fasta']
+    resources:
+        mem_mb=16384
     shell:
         """
         gatk --java-options '-Xmx16g' GenotypeGVCFs \
@@ -147,7 +159,7 @@ rule bcftools_vcf_clean:
     shell:
         """
         bcftools view -e 'ALT="*"' {input} |
-        bcftools annotate --set-id '%CHROM\_%POS\_%REF\_%ALT' | \
+        bcftools annotate --set-id '%CHROM\\_%POS\\_%REF\\_%ALT' | \
         bcftools sort -W=tbi -Oz -o {output}
         """
 

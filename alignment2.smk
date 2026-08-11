@@ -1,6 +1,7 @@
 import os
 import sys
 import yaml
+from datetime import datetime
 
 # Create log directories
 os.makedirs('logs/cluster/aln',exist_ok=True)
@@ -15,6 +16,22 @@ def map_input(wildcards):
         inputs.append(f"bam_input/work/{wildcards.sample}/{wildcards.reference}/{_run['run']}/{_run['lane']}/{_run['index']}/5.markdup.bam")
     assert len(inputs)>0
     return sorted(inputs)
+
+def map_pair_metrics(wildcards):
+    inputs=[]
+    for _run in FILES[wildcards.sample].values():
+        base=f"bam_input/work/{wildcards.sample}/{wildcards.reference}/{_run['run']}/{_run['lane']}/{_run['index']}"
+        inputs.append(f"{base}/5.hs.metrics")
+    return sorted(inputs)
+
+def all_pair_hs_metrics():
+    out=[]
+    ref=config['reference']['key']
+    for sample in SAMPLES:
+        for _run in FILES[sample].values():
+            base=f"bam_input/work/{sample}/{ref}/{_run['run']}/{_run['lane']}/{_run['index']}"
+            out.append(f"{base}/5.hs.metrics")
+    return sorted(out)
 
 def get_fastqs(wildcards):
     entry=None
@@ -77,11 +94,15 @@ for sample in SAMPLES:
 
 ### ### ### RULES ### ### ###
 
-localrules:aln_all,bam_table,write_bam_table
+localrules:aln_all,bam_table,write_bam_table,pair_metrics_summary
 
 rule aln_all:
     input:
-        expand("bam_input/final/{sample}/{sample}.{reference}.bam",sample=SAMPLES,reference=config['reference']['key'])
+        expand("bam_input/final/{sample}/{sample}.{reference}.bam",sample=SAMPLES,reference=config['reference']['key']),
+        expand("{project}.{reference}.{date}.pair_metrics_summary.csv",
+               project=config['project']['name'],
+               reference=config['reference']['key'],
+               date=datetime.today().strftime('%Y%m%d'))
 
 rule bam_table:
     input:
@@ -139,16 +160,32 @@ rule samtools_markdup:
         samtools markdup -s -f {params.stats} -@ {threads} {input} {output}
         """
 
+rule pair_hs_metrics:
+    input:
+        "bam_input/work/{sample}/{reference}/{run}/{lane}/{index}/5.markdup.bam"
+    output:
+        "bam_input/work/{sample}/{reference}/{run}/{lane}/{index}/5.hs.metrics"
+    params:
+        reference=config['reference']['fasta'],
+        baits=config['resources']['picard_intervals'],
+        targets=config['resources']['picard_intervals'],
+        memory="10240m"
+    resources:
+        mem_mb=12288
+    shell:
+        "gatk --java-options -Xmx{params.memory} CollectHsMetrics -R {params.reference} -I {input} -O {output} --COVERAGE_CAP 1000 --BAIT_INTERVALS {params.baits} --TARGET_INTERVALS {params.targets} --VALIDATION_STRINGENCY SILENT"
+
 rule input_ready:
     input:
-        map_input
+        bams=map_input,
+        metrics=map_pair_metrics
     output:
         temp("bam_input/work/{sample}/{reference}/input.bam")
     threads:
         4
     shell:
         """
-        samtools merge -f -@ {threads} {output} {input}
+        samtools merge -f -@ {threads} {output} {input.bams}
         samtools index {output}
         """
 
@@ -213,3 +250,15 @@ rule write_bam_table:
         with open(output[0],'w') as file:
             for sample in SAMPLES:
                 file.write(f"{sample}\tbam_input/final/{sample}/{sample}.{params.ref}.bam\n")
+
+rule pair_metrics_summary:
+    input:
+        all_pair_hs_metrics()
+    output:
+        "{project}.{reference}.{date}.pair_metrics_summary.csv"
+    params:
+        sample_list=config['project']['sample_list'],
+        fastq_config=config['project']['fastq_config'],
+        ref=config['reference']['key']
+    shell:
+        "python pair_metrics_summary.py -I {params.sample_list} -F {params.fastq_config} -R {params.ref} -O {output}"

@@ -37,7 +37,9 @@ rule gatk_CollectAlignmentSummaryMetrics:
         "metrics/{reference}/{sample}/alignment_summary.metrics"
     params:
         reference=config['reference']['fasta'],
-        memory="10240m"
+        memory="5120m"
+    resources:
+        mem_mb=6144
     shell:
         "gatk --java-options -Xmx{params.memory} CollectAlignmentSummaryMetrics -R {params.reference} -I {input} -O {output} --VALIDATION_STRINGENCY SILENT"
 
@@ -49,8 +51,10 @@ rule gatk_CollectInsertSizeMetrics:
         "metrics/{targets}/{sample}/insert_size_histogram.pdf"
     params:
         reference=config['reference']['fasta'],
-        memory="10240m",
+        memory="5120m",
         MINIMUM_PCT=0.05
+    resources:
+        mem_mb=6144
     shell:
         "gatk --java-options -Xmx{params.memory} CollectInsertSizeMetrics -R {params.reference} -I {input} -O {output[0]} -H {output[1]} -M {params.MINIMUM_PCT} --VALIDATION_STRINGENCY SILENT"
 
@@ -65,6 +69,8 @@ rule gatk_CollectHsMetrics:
         baits=config['resources']['picard_intervals'],
         targets=config['resources']['picard_intervals'],
         memory="10240m"
+    resources:
+        mem_mb=12288
     shell:
         "gatk --java-options -Xmx{params.memory} CollectHsMetrics -R {params.reference} -I {input} -O {output[0]} --COVERAGE_CAP 1000 --BAIT_INTERVALS {params.baits} --TARGET_INTERVALS {params.targets} --PER_TARGET_COVERAGE {output[1]} --VALIDATION_STRINGENCY SILENT"
 
@@ -99,7 +105,8 @@ rule metrics_summary:
                        sample=SAMPLES,
                        reference=config['reference']['key'])
     output:
-        csv='{project}.{date}.metrics_summary.csv'
+        csv='{project}.{date}.metrics_summary.csv',
+        exclude="exclude.list"
     params:
         PDX=str('disambiguate' in config),
         sample_list=config['project']['sample_list'],
@@ -107,7 +114,7 @@ rule metrics_summary:
         targets=config['resources']['targets_key']
     shell:
         """
-        python metrics_summary.py -I {params.sample_list} -O {output} -L {params.targets} -R {params.ref} --PDX {params.PDX}
+        python metrics_summary.py -I {params.sample_list} -O {output.csv} -X {output.exclude} -L {params.targets} -R {params.ref} --PDX {params.PDX}
         """
 
 rule target_coverage_summary:

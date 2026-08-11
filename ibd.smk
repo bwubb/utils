@@ -137,9 +137,10 @@ rule report_ibd:
         "data/work/IBD/plink.genome"
     output:
         "data/work/IBD/ibd-related.txt",
-        "data/work/IBD/ibd_report.html"
+        "data/work/IBD/ibd_report.html",
+        "data/work/IBD/ibd_pairs_annotated.tsv"
     shell:
         """
         awk '$10 >= 0.1875 {{print $2, $4, $10}}' {input} > {output[0]}
-        Rscript -e 'library(rmarkdown); render("ibd_report.Rmd", output_file="{output[1]}", params=list(genome_file="{input}"))'
+        Rscript -e 'library(rmarkdown); p<-list(genome_file="{input}",annotated_tsv="{output[2]}"); if(file.exists("pair.table"))p$pair_table<-"pair.table"; if(file.exists("sample.list"))p$sample_list<-"sample.list"; render("ibd_report.Rmd",output_file="{output[1]}",params=p)'
         """

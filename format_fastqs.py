@@ -9,6 +9,13 @@ from collections import defaultdict
 from yaml.representer import Representer
 yaml.add_representer(defaultdict, Representer.represent_dict)
 
+# fastq.yml for alignment.smk: flat per sample
+#   SAMPLE:
+#     files:
+#       - ..._R1.fastq.gz
+#       - ..._R2.fastq.gz
+# (basenames; alignment.smk prepends FASTQ/ unless path is absolute)
+
 def subset_R2_fastqs(FASTQS):
     r2=[]
     for file in FASTQS:
@@ -18,26 +25,34 @@ def subset_R2_fastqs(FASTQS):
 
 def make_info(r2):
     sample_data=defaultdict(dict)
-    for fq2 in r2:#need os basename
+    for fq2 in r2:
         basename=fq2.rstrip('.fastq.gz')
         parts=basename.split('_')
-        #assert len
         sample_name=parts[0]
         LB=parts[1]
-        ID='-'.join(parts[2:4])
-        PU='-'.join(parts[2:5])
+        run,lane,index=(parts[-3],parts[-2],parts[-1]) if len(parts)>=3 else ('run','0','0')
         fq1=fq2.replace('_R2.fastq.gz','_R1.fastq.gz')
-        #if files exist else ~
         files=[fq1,fq2]
-        sample_data[sample_name][ID]={'LB':LB,'PU':PU,'files':files}
+        sample_data[sample_name][basename]={'LB':LB,'run':run,'lane':lane,'index':index,'files':files}
     return sample_data
 
-def write_output(outdict,filename):
-    with open(f'fastq.yml','w') as outfile:
-        yaml.dump(outdict,outfile,default_flow_style=False)
-    with open(f'sample.list','w') as file:
-        for i in sorted(outdict.keys()):
+def flat_fastq_config(sample_data):
+    """Collapse nested run entries to sample -> files (alignment.smk / project-utils shape)."""
+    flat={}
+    for sample,runs in sample_data.items():
+        files=[]
+        for entry in runs.values():
+            files.extend(entry['files'])
+        flat[sample]={'files':sorted(files)}
+    return flat
+
+def write_output(flat_config):
+    with open('fastq.yml','w') as outfile:
+        yaml.dump(flat_config,outfile,default_flow_style=False)
+    with open('sample.list','w') as file:
+        for i in sorted(flat_config.keys()):
             file.write(f'{i}\n')
+    print('Created: fastq.yml, sample.list')
 
 def main(argv=None):
     p=argparse.ArgumentParser()
@@ -48,36 +63,22 @@ def main(argv=None):
     all_fastqs=glob.glob(f'{args.dir}/*.fastq.gz')
     print(f"{len(all_fastqs)} found.")
     r2=subset_R2_fastqs(all_fastqs)
-    #print(r2)
     sample_data=make_info(r2)
-    #print(sample_data)
 
     validate=defaultdict(set)
     for sample_key,sample_vals in sample_data.items():
         for runid_key,runid_vals in sample_vals.items():
             validate[sample_key].add(runid_vals['LB'])
 
-    with open(f'{datetime.date.today().strftime("%Y%m%d")}.sample.targets.yml','w') as file:
-        #Custom YAML write
-        #Not sorted
+    date_prefix=datetime.date.today().strftime('%Y%m%d')
+    with open(f'{date_prefix}.sample.targets.yml','w') as file:
         for sample_key,LB in validate.items():
             if len(LB)!=1:
-                print('WARNING! Multiple LB values for {sample_key} : {",".join(LB)}')
-                #Write possible fix, to rename files, and sample names with *-2,*-3,etc
+                print(f'WARNING! Multiple LB values for {sample_key}: {",".join(LB)}')
             else:
                 file.write(f'{sample_key}: {"".join(LB)}\n')
 
-    write_output(sample_data,f'{datetime.date.today().strftime("%Y%m%d")}')
-
-    #Not sure what this was stupposed to be
-    #outfile_dict=defaultdict(lambda: defaultdict(dict))
-    #for Sample,v in sample_data.items():
-    #    for RunLane,v1 in v.items():
-    #        if RunLane not in outfile_dict[v1['LB']][Sample].keys():
-    #            outfile_dict[v1['LB']][Sample][RunLane]=v1
-    #for key in outfile_dict.keys():
-    #    write_output(outfile_dict[key],f'{datetime.date.today().strftime("%Y%m%d")}.{key}')
-
+    write_output(flat_fastq_config(sample_data))
 
 if __name__=='__main__':
     main()

@@ -1,9 +1,17 @@
+# Canonical SNP resource for ibd/ibd2 (and metrics):
+#   data/work/common_snps/{targets_key}/gnomad.exomes.common_biallelic_snps.{ref}.vcf.gz
+#
+# Set exactly one of these in config:
+#
+# common_snps — Pre-made common-SNP VCF (panel-wide or similar) that still needs
+#   restriction to targets_intervals. Runs one GATK SelectVariants (-L intervals).
+#
+# gnomad_vcf — Broader gnomAD sites VCF; build common SNPs on the panel via
+#   select -> simplify -> biallelic/AF filter -> final VCF at the path above.
+
 rule common_biallelic_snps:
     input:
         expand("data/work/common_snps/{name}/gnomad.exomes.common_biallelic_snps.{ref}.vcf.gz",name=config["resources"]["targets_key"],ref=config["reference"]["key"])
-
-#What the hell is this?
-#Where is the rule that actually selects the variants?
 
 if config["resources"]["common_snps"]:
     rule select_from_prefiltered:
